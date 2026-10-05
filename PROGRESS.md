@@ -6,8 +6,8 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 |---|---|---|
 | 1 Foundations | M0 | **done** |
 | 2 A data + dead reckoning | M1, M2 | **done** |
-| 3 A 15-state EKF | M3 | next |
-| 4 A tuning + writeup | M4 | not started |
+| 3 A 15-state EKF | M3 | **done** |
+| 4 A tuning + writeup | M4 | next |
 | 5 B physics | M5, M6 | not started |
 | 6 B control | M7 | not started |
 | 7 B estimation | M8 | not started |
@@ -76,4 +76,45 @@ Whole-flight end errors reach 3 km – 172 km (e.g. hover 78 km after 280 s). Re
 - Citations in `assumptions.md` A-07…A-12 marked "unverified" (Hofmann-Wellenhof & Moritz section, PX4 doc pages, IGRF details, Snyder) need checking before the writeup. Recomputed IGRF inclinations using the per-log UTC date are TBD.
 - `ppigrf` dates: 78808b7c is from 2024-12-19.
 
-**Next: Group 3** (M3: 15-state error-state EKF, three increments GPS+baro → attitude+mag → biases). Recommended main-session model: **Opus** (`/model opus`).
+Group 3 resolved: GPS delay re-stamped `t − 0.11 s` (A-09); mag fused as tilt-compensated heading; baro as height change (A-10); local g per log.
+
+## Group 3 — Project A 15-state ES-EKF (M3) — done
+
+**Delivered**
+- `docs/specs/ekf_drone.md` (model, API, generator, tests, study) and `sensor_fusion/ekf_drone.py`: 15-state error-state EKF on `common/ekf.py`. Error state `[δp, δv, δθ (body, right), δb_g, δb_a]`; F/G/H derivation in the module docstring; nominal propagation identical to `strapdown` (trapezoid, mid-interval attitude); first-order Φ/Qd (Van Loan option); GPS pos/vel (delay-corrected, applied at the nearest IMU sample); baro down-position; tilt-compensated mag heading with full residual Jacobian; inject + reset after every update; frozen bias states for increments 1–2 (`EkfConfig.increment`). Static init: accel leveling + mag heading + IGRF declination; origin = first GPS fix. `streams_from_log`, `ekf2_reference` (EKF2 translated into our NED; reviewer-verified: GPS − EKF2 median ≤ 0.12 m on all logs).
+- `sensor_fusion/synthetic.py` (analytic figure-8 / hover / static truth, instantaneous IMU with noise + bias random walk, delayed GPS, baro, mag) — written by test-author from the spec.
+- `sensor_fusion/report/ekf_study.py` → `report/ekf_metrics_<id>.json` + `figures/ekf_<id>_{pos,att,bias,nis}.png` (3 logs × 3 increments, ~3 min total; EKF2 biases from `estimator_sensor_bias` as reference).
+- `assumptions.md` A-03 (IMU noise from logged EKF2 params `EKF2_ACC_NOISE` 0.35 m/s² etc., converted to densities with `EKF2_PREDICT_US` = 10 ms), A-04 (R values and floors), A-05 (IGRF declination −0.31° / 0.00° / +0.45°).
+- Tests: **664 passing** (~60 s). New: 22 generator self-checks (strapdown on noise-free synthetic IMU converges at ratio 4.000 per dt halving) and 37 filter tests: numerical F/G and H Jacobians, first-order vs Van Loan, noise-free tracking, bias convergence, **NEES Monte Carlo 9.86 (99 % band 5.9–12.8, 10 seeds)**, GPS NIS 0.958 inside 95 %, increments, SPD/unit norm, GPS-delay benefit, static init, real-log smoke.
+
+**★ Opus review** — no blockers. Numerically verified: F/G signs (FD 2e-6), discretisation (≈ 1e-5 vs Van Loan), yaw Jacobian, declination sign, reset, update ordering, timing, EKF2 frame translation. Fixed: **mag heading used only the yaw Jacobian although the measurement is tilt-compensated with the estimated tilt** (tilt error leaks × tan I: 0.95 / 0.54 / 2.32 on hover / aggressive / other) → full residual Jacobian `mag_heading_jacobian`. Independently confirmed by the synthetic NEES test (failed before, NEES ≈ 14; passes after). Nits fixed: `meta.init.static`, accepted-only update counts, `ekf2_reference` origin guard, docstring bounds and the dt/2 IMU-timing lag (0.01° effect).
+
+**Flight results** (RMS vs EKF2 after 5 s; attitude excludes ±1 s around EKF2 yaw resets; EKF2 is a reference, not truth)
+
+| Log | Inc | posH [m] | posD [m] | vel [m/s] | tilt [°] | yaw [°] | NIS gps_pos / vel / baro / mag (dof 3/3/1/1) |
+|---|---|---|---|---|---|---|---|
+| hover | 1 | 0.165 | 0.96 | 0.224 | 1.55 | 6.13 | 0.76 / 0.67 / 1.27 / – |
+| hover | 2 | 0.150 | 0.96 | 0.214 | 1.68 | 4.75 | 0.74 / 0.62 / 1.27 / 0.47 |
+| hover | 3 | 0.050 | 1.04 | 0.105 | 1.05 | 5.78 | 0.78 / 0.22 / 1.16 / 0.09 |
+| aggressive | 1 | 0.155 | 0.81 | 0.225 | 1.18 | 2.58 | 2.73 / 1.39 / 37.7 / – |
+| aggressive | 2 | 0.156 | 0.81 | 0.224 | 1.10 | 1.29 | 2.72 / 1.39 / 37.7 / 0.24 |
+| aggressive | 3 | 0.055 | 0.77 | 0.088 | 0.37 | 1.38 | 2.37 / 0.87 / 38.0 / 0.05 |
+| other | 1 | 0.268 | 0.80 | 0.256 | 0.64 | 2.00 | 0.80 / 0.98 / 0.93 / – |
+| other | 2 | 0.304 | 0.80 | 0.297 | 0.84 | 2.88 | 0.89 / 1.24 / 0.93 / 0.23 |
+| other | 3 | 0.254 | 0.80 | 0.231 | 0.56 | 1.80 | 0.69 / 0.87 / 0.94 / 0.31 |
+
+Runtime 9–32 s per run (≈ 15k IMU steps/s). Bias estimation (inc 3) cuts horizontal position and velocity differences by ~3× on hover/aggressive and tilt up to 3× (aggressive 1.10 → 0.37°). Gyro bias agrees with EKF2's `estimator_sensor_bias` to ≈ 0.001 rad/s.
+
+**Interpretation notes / open issues for Group 4**
+- **Hover static tilt offset 1.35°** between accel leveling and EKF2 equals the tilt implied by EKF2's own accel bias [−0.141, −0.192, −0.009] m/s². It is not a convention error.
+- **Hover horizontal accel bias is unobservable** (8° yaw range): σ stays ≈ 0.13–0.15 m/s², close to the prior; the estimate wanders along the tilt/bias ridge (ended at −0.25 before the mag fix, at x +0.04 / y −0.31 after). Report it only with ±σ, and do not tune `accel_bias_rw` to "fix" it. Vertical accel bias is well determined (σ ≈ 0.01).
+- **Yaw vs EKF2**: hover is −5…−8° once mag is fused (uncorrected hard iron, A-11; EKF2 estimates mag bias). On "other", inc 2 yaw is worse than inc 1 (≈ 3° mag-vs-IGRF heading offset, Group 2). Options: mag bias states (beyond the 15-state scope) or larger σψ on hover — a Group 4 decision.
+- **Mag heading is strongly nonlinear at high inclination** (the Jacobian changes ~15 per rad at I = 67°); keep σψ at several degrees or more on the "other" log.
+- **Baro NIS ≈ 38 on aggressive** (GPS vertical drift vs baro, A-08/A-10) → baro offset state or larger σ_baro.
+- **NIS low** for mag (0.05–0.47) and hover GPS velocity (0.22; 0.3 m/s floor vs s_acc 0.05) → R too conservative. GPS-position NIS is 2.7 on aggressive.
+- **Vertical difference 0.8–1.0 m RMS** on all logs, partly datum: GPS D − EKF2 D is −0.27…−0.33 m in the first 5 s on all logs (reviewer), and EKF2 follows GPS height on 2 logs and baro on 1.
+- Synthetic: with a frozen 0.01 rad/s gyro bias, increment 2 is overconfident (0.2 rad yaw error, σ 0.004) — the expected motivation for increment 3.
+- `run_filter` applies the GPS σ floors; `DroneEKF.update_*` take σ as given.
+- All increments were implemented together behind `EkfConfig.increment` and run on all 3 flights after the review, not strictly one after another.
+
+**Next: Group 4** (M4: time-boxed covariance sweep, RMSE + NIS with chi² bounds, `run_flight.py` CLI, writeup). Recommended main-session model: **Sonnet** (`/model sonnet`).

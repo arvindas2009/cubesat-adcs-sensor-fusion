@@ -11,9 +11,9 @@
 | Group | Milestones | Main session | Status |
 |---|---|---|---|
 | 1 Foundations | M0 | Opus | ✅ done (commit `8d78ae7`, 445 tests) |
-| 2 Project A data + dead reckoning | M1, M2 | Sonnet | ✅ done (commit see `git log`, 605 tests) |
-| 3 Project A 15-state EKF | M3 | Opus | ⏭ **next** |
-| 4 Project A tuning + writeup | M4 | Sonnet | not started |
+| 2 Project A data + dead reckoning | M1, M2 | Sonnet | ✅ done (commit `ec49fa7`, 605 tests) |
+| 3 Project A 15-state EKF | M3 | Opus | ✅ done (commit see `git log`, 664 tests) |
+| 4 Project A tuning + writeup | M4 | Sonnet | ⏭ **next** |
 | 5 Project B physics (orbit, environment, dynamics, disturbances) | M5, M6 | Sonnet | not started |
 | 6 Project B control (perfect knowledge) | M7 | Opus | not started |
 | 7 Project B attitude determination | M8 | Opus | not started |
@@ -120,7 +120,7 @@ Why grouped: both are "get real data in and see it"; the baseline is the first c
 
 **Exit:** v1 M1 + M2 exits. → **STOP, wait.**
 
-### Group 3 — Project A 15-state error-state EKF (M3) · main session: **Opus**
+### Group 3 — Project A 15-state error-state EKF (M3) · main session: **Opus** · ✅ done
 Why grouped: one filter, three increments; the derivations must be consistent across all three, so one owner.
 
 | Task | Who | Model |
