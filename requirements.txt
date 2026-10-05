@@ -1,0 +1,8 @@
+numpy>=2.0
+scipy>=1.14
+matplotlib>=3.9
+pytest>=8
+pyulog>=1.1
+ppigrf>=2.0
+sgp4>=2.23
+requests>=2.31

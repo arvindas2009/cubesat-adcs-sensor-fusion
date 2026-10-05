@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+sensor_fusion/data/*.ulg
+sensor_fusion/data/raw/
+**/report/figures/_scratch/
+.kilo/
+.claude/settings.local.json
