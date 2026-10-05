@@ -4,6 +4,30 @@
 > - v1 (original, unchanged copy): `C:\Users\arvin\.claude\plans\plan-cubesat-adcs-rustling-sunbeam.v1-original.md`
 > - v2 (this file): adds execution **groups**, a **model assignment (Opus vs Sonnet)** per group/task, **custom subagent definitions**, and a **stop-and-wait gate** after every group. Technical scope of M0–M11 is unchanged.
 > - At the start of Group 1 this file is copied into the repo as `docs/IMPLEMENTATION_PLAN.md` and kept in sync from then on.
+> - v2.1: adds the status board and the "Resuming in a new chat" section below. **The repo copy (`docs/IMPLEMENTATION_PLAN.md`) is the source of truth from here on.**
+
+## Status board
+
+| Group | Milestones | Main session | Status |
+|---|---|---|---|
+| 1 Foundations | M0 | Opus | ✅ done (commit `8d78ae7`, 445 tests) |
+| 2 Project A data + dead reckoning | M1, M2 | Sonnet | ⏭ **next** |
+| 3 Project A 15-state EKF | M3 | Opus | not started |
+| 4 Project A tuning + writeup | M4 | Sonnet | not started |
+| 5 Project B physics (orbit, environment, dynamics, disturbances) | M5, M6 | Sonnet | not started |
+| 6 Project B control (perfect knowledge) | M7 | Opus | not started |
+| 7 Project B attitude determination | M8 | Opus | not started |
+| 8 Project B closed loop + Monte Carlo + design doc | M9 | Opus | not started |
+| 9 Packaging + 3D visualizer | M10, M11 | Sonnet | not started |
+
+Details of what each completed group delivered, measured numbers, and open decisions live in `PROGRESS.md`.
+
+## Resuming in a new chat
+
+1. Open Claude Code in `D:\Projects\Coding\ubeSat ADCS + Sensor Fusion` (the project `CLAUDE.md` loads automatically and points here).
+2. Switch to the main-session model listed for the next group in the status board (`/model sonnet` or `/model opus`).
+3. Prompt: **"Continue with Group N per docs/IMPLEMENTATION_PLAN.md"** (N = the group marked ⏭ next).
+4. Claude then: reads `PROGRESS.md` + this file + `CONVENTIONS.md` → runs the group per its task table, delegating to the named subagents (`py-implementer`, `test-author`, `data-wrangler`, `figures-runner`, `doc-writer` on Sonnet; `math-reviewer` on Opus — they load by name in a fresh session) → ★ review → exit criteria + green `pytest` → updates `PROGRESS.md` and this status board → one git commit → **stops and waits** for the next prompt.
 
 ## Context
 
@@ -58,14 +82,14 @@ No Explore/Plan agents are needed: the repo is empty and the design is already i
 2. Independent tasks within a group run as **parallel subagents**; dependent ones run in sequence.
 3. ★ checkpoints → `math-reviewer` (Opus) pass; main session applies or delegates fixes.
 4. Exit criteria checked: full `pytest` green, required figures exist, numbers recorded.
-5. Main session updates `PROGRESS.md` (done, numbers, open issues, next group), makes **one git commit for the group**.
+5. Main session updates `PROGRESS.md` (done, numbers, open issues, next group) and the status board at the top of this file, makes **one git commit for the group**.
 6. **STOP.** Report a short summary and wait for the user's next prompt. Do not start the next group.
 
 ---
 
 ## Groups (Project A → Project B)
 
-### Group 1 — Foundations (M0) · main session: **Opus**
+### Group 1 — Foundations (M0) · main session: **Opus** · ✅ done
 Why grouped: everything else depends on conventions + `common/`; doing it as one block fixes the API once.
 
 | Task | Who | Model |
