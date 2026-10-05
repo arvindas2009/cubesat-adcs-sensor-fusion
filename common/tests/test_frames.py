@@ -978,3 +978,92 @@ class TestLvlh:
         F.dcm_eci_to_lvlh(r, v)
         np.testing.assert_array_equal(r, r0)
         np.testing.assert_array_equal(v, v0)
+
+
+# --------------------------------------------------------------------------- #
+# normal_gravity (WGS-84 Somigliana + free-air), docs/specs/sensor_fusion_data.md section 6
+# --------------------------------------------------------------------------- #
+GAMMA_E = 9.7803253359      # WGS-84 equatorial normal gravity, m/s^2 (NGA TR8350.2)
+GAMMA_P = 9.8321849378      # WGS-84 polar normal gravity, m/s^2
+FREE_AIR = -3.086e-6        # free-air gradient, (m/s^2)/m
+
+
+def _oracle_somigliana(lat):
+    """Independent (a, b, gamma_e, gamma_p) form of the Somigliana formula (Torge, Geodesy;
+    Hofmann-Wellenhof & Moritz, Physical Geodesy eq. 2-146) - not the k/e^2 form."""
+    s2, c2 = np.sin(lat) ** 2, np.cos(lat) ** 2
+    return (A * GAMMA_E * c2 + B * GAMMA_P * s2) / np.sqrt(A * A * c2 + B * B * s2)
+
+
+class TestNormalGravity:
+    def test_equator_and_pole_sea_level(self):
+        # Defining WGS-84 constants -> exact algebra, 1e-9 as specified.
+        assert F.normal_gravity(0.0, 0.0) == pytest.approx(GAMMA_E, abs=1e-9)
+        assert F.normal_gravity(np.pi / 2, 0.0) == pytest.approx(GAMMA_P, abs=1e-9)
+        assert F.normal_gravity(-np.pi / 2, 0.0) == pytest.approx(GAMMA_P, abs=1e-9)
+
+    def test_alt_defaults_to_sea_level(self):
+        assert F.normal_gravity(0.3) == pytest.approx(F.normal_gravity(0.3, 0.0), abs=0.0)
+
+    def test_mid_latitude_textbook_value(self):
+        # 45 deg geodetic: 9.80619... m/s^2 (Somigliana closed form); +-1e-5 per the spec.
+        assert F.normal_gravity(np.radians(45.0), 0.0) == pytest.approx(9.80619, abs=1e-5)
+
+    def test_matches_independent_somigliana_form_over_latitude(self):
+        # The two algebraic forms are identical up to the 1e-12-level rounding of the
+        # published constants (k, e^2 are derived from gamma_p/gamma_e, a, b): 1e-9 m/s^2.
+        lat = np.radians(np.linspace(-90.0, 90.0, 181))
+        np.testing.assert_allclose(F.normal_gravity(lat, 0.0), _oracle_somigliana(lat), rtol=0, atol=1e-9)
+
+    def test_symmetric_in_latitude_and_monotonic_to_pole(self):
+        lat = np.radians(np.linspace(0.0, 90.0, 91))
+        g = F.normal_gravity(lat, 0.0)
+        np.testing.assert_allclose(F.normal_gravity(-lat, 0.0), g, rtol=0, atol=1e-15)
+        assert np.all(np.diff(g) > 0.0)
+
+    def test_free_air_gradient_finite_difference(self):
+        h = np.linspace(0.0, 5000.0, 51)
+        for lat_deg in (0.0, 27.5, 45.0, 80.0):
+            g = F.normal_gravity(np.radians(lat_deg), h)
+            # g is exactly affine in h here; finite difference of the whole profile
+            grad = np.diff(g) / np.diff(h)
+            # roundoff: eps*g/dh = 2e-16*10/100 ~ 2e-17 absolute -> 1e-9 relative is generous
+            np.testing.assert_allclose(grad, FREE_AIR, rtol=1e-9, atol=0)
+            # and the 0-5 km total change
+            assert (g[-1] - g[0]) / 5000.0 == pytest.approx(FREE_AIR, rel=1e-9)
+
+    def test_gravity_decreases_with_height(self):
+        assert F.normal_gravity(0.5, 1000.0) < F.normal_gravity(0.5, 0.0)
+
+    def test_height_term_independent_of_latitude(self):
+        lat = np.radians([0.0, 30.0, 60.0, 90.0])
+        d = F.normal_gravity(lat, 2000.0) - F.normal_gravity(lat, 0.0)
+        np.testing.assert_allclose(d, FREE_AIR * 2000.0, rtol=1e-9)
+
+    def test_scalar_and_batch_shapes(self):
+        assert np.ndim(F.normal_gravity(0.1, 10.0)) == 0
+        lat = np.radians(np.linspace(-80, 80, 7))
+        assert F.normal_gravity(lat, 0.0).shape == (7,)
+        assert F.normal_gravity(lat, 100.0).shape == (7,)
+        assert F.normal_gravity(0.2, np.arange(5.0)).shape == (5,)
+        assert F.normal_gravity(lat[:, None], np.arange(4.0)[None, :]).shape == (7, 4)
+        assert F.normal_gravity(np.zeros((2, 3, 4)), np.zeros((2, 3, 4))).shape == (2, 3, 4)
+
+    def test_batch_equals_elementwise(self):
+        rng = np.random.default_rng(20260605)
+        lat = rng.uniform(-np.pi / 2, np.pi / 2, (5, 6))
+        alt = rng.uniform(-100.0, 5000.0, (5, 6))
+        out = F.normal_gravity(lat, alt)
+        expect = _oracle_somigliana(lat) + FREE_AIR * alt
+        np.testing.assert_allclose(out, expect, rtol=0, atol=1e-9)
+        for i in range(5):
+            for j in range(6):
+                assert out[i, j] == pytest.approx(F.normal_gravity(lat[i, j], alt[i, j]), abs=1e-15)
+
+    def test_inputs_not_mutated(self):
+        lat = np.radians(np.array([10.0, 20.0]))
+        alt = np.array([5.0, 6.0])
+        l0, a0 = lat.copy(), alt.copy()
+        F.normal_gravity(lat, alt)
+        np.testing.assert_array_equal(lat, l0)
+        np.testing.assert_array_equal(alt, a0)

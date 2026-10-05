@@ -168,6 +168,34 @@ def lla_to_ned(lat, lon, alt, lat0, lon0, alt0) -> np.ndarray:
 
 
 # --------------------------------------------------------------------------
+# Gravity
+# --------------------------------------------------------------------------
+_GAMMA_E: float = 9.7803253359        # WGS-84 normal gravity at the equator [m/s^2]
+_SOMIGLIANA_K: float = 0.00193185265241
+_FREE_AIR: float = 3.086e-6           # free-air gradient [m/s^2 per m]
+
+
+def normal_gravity(lat, alt=0.0) -> np.ndarray:
+    """WGS-84 normal gravity magnitude (m/s^2) at geodetic ``lat`` and height ``alt``.
+
+    Parameters: ``lat`` geodetic latitude in rad, ``alt`` height above the
+    WGS-84 ellipsoid in m (broadcast together; scalars or arrays). Returns the
+    magnitude of gravity (positive, directed down) with the broadcast shape.
+
+    Somigliana closed form at the ellipsoid,
+    ``g0 = 9.7803253359 (1 + 0.00193185265241 sin^2 lat) /
+    sqrt(1 - 0.00669437999013 sin^2 lat)``, plus the linear free-air
+    correction ``-3.086e-6 * alt``. Valid for heights up to a few km
+    (the second-order term, ~7e-9 m/s^2 per km^2, is neglected). Oracles:
+    equator 9.7803253359, pole 9.8321849378 m/s^2.
+    """
+    lat, alt = np.broadcast_arrays(_f(lat), _f(alt))
+    s2 = np.sin(lat) ** 2
+    g0 = _GAMMA_E * (1.0 + _SOMIGLIANA_K * s2) / np.sqrt(1.0 - 0.00669437999013 * s2)
+    return g0 - _FREE_AIR * alt
+
+
+# --------------------------------------------------------------------------
 # Time and ECI <-> ECEF
 # --------------------------------------------------------------------------
 def _julian_date_one(dt: _dt.datetime) -> float:

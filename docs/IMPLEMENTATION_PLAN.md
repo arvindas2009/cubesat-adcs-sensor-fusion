@@ -11,8 +11,8 @@
 | Group | Milestones | Main session | Status |
 |---|---|---|---|
 | 1 Foundations | M0 | Opus | ✅ done (commit `8d78ae7`, 445 tests) |
-| 2 Project A data + dead reckoning | M1, M2 | Sonnet | ⏭ **next** |
-| 3 Project A 15-state EKF | M3 | Opus | not started |
+| 2 Project A data + dead reckoning | M1, M2 | Sonnet | ✅ done (commit see `git log`, 605 tests) |
+| 3 Project A 15-state EKF | M3 | Opus | ⏭ **next** |
 | 4 Project A tuning + writeup | M4 | Sonnet | not started |
 | 5 Project B physics (orbit, environment, dynamics, disturbances) | M5, M6 | Sonnet | not started |
 | 6 Project B control (perfect knowledge) | M7 | Opus | not started |
