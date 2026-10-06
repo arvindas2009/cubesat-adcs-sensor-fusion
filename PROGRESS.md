@@ -10,8 +10,8 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 | 4 A tuning + writeup | M4 | **done** |
 | 5 B physics | M5, M6 | **done** |
 | 6 B control | M7 | **done** |
-| 7 B estimation | M8 | next |
-| 8 B closed loop + MC + doc | M9 | not started |
+| 7 B estimation | M8 | **done** |
+| 8 B closed loop + MC + doc | M9 | next |
 | 9 Packaging + visualizer | M10, M11 | not started |
 
 ## Group 1 — Foundations (M0) — done
@@ -222,4 +222,40 @@ Runtime 9–32 s per run (≈ 15k IMU steps/s). Bias estimation (inc 3) cuts hor
 - Citations: vendor pages (read 2026-10-06) for iMTQ and CW0017; Avanzini & Giulietti 2012 and the LAPAN 3U study (B-18), Wie and Numerical Recipes (added by doc-writer) are marked unverified.
 - No ★ review in this group (none in the task table); signs were checked by tests (dissipation, closed-loop error dynamics, LVLH rate vs finite differences, dumping torque identity).
 
-**Next: Group 7** (M8: sensors, TRIAD, MEKF). Recommended main-session model: **Opus** (`/model opus`).
+## Group 7 — Project B attitude determination (M8) — done
+
+**Delivered**
+- `docs/specs/adcs_estimation.md` (spec: §0 sampling model, sensors, TRIAD + covariance derivation, MEKF API, prototype numbers, tests, figures).
+- `adcs/sensors.py` (py-implementer): magnetometer **PNI RM3100** (σ 15 nT/axis), gyro **ADXRS453** (ARW 0.65 °/√h = 1.8908e-4 rad/√s; RRW 1.0409e-6 rad/s/√s from 16 °/h bias stability over one orbit — ASSUMPTION; turn-on bias σ 0.1 °/s), six cosine CSS **Tensor Tech CSS-10** (σ_d 0.0436 → 5° 1σ, validity threshold 0.6). Vendor pages read 2026-10-06 (main session). `Gyro` (stateful), `measure_series` (independent `spawn(3)` streams), `mean_rates`. **Sampling model**: everything at 1 Hz; gyro sample k = exact mean rate `to_rotvec(q_{k−1}* ⊗ q_k)/T` + bias + ARW (ideal rate-integrating gyro), so the filter's propagation model is exact for the truth.
+- `adcs/estimation.py`: `triad`, `triad_covariance` (py-implementer; covariance derived by main, body frame, verified by MC to 1.5 % of λ_max); **MEKF** (main): error state `[δθ, δb]` on `common.ekf.ErrorStateEKF`, closed-form Φ/Qd (`discrete_model`, = `van_loan` to 1e-11), vector updates `H = [[R(q̂)ᵀv×], 0]` for magnetometer (field in T, 3 dof) and CSS (unnormalised difference vector, 3 dof), inject + reset after every update, TRIAD initialisation at the first valid sun sample (primary = magnetometer), optional χ² gate (off by default); `run_mekf`, `attitude_errors`, `nees`.
+- `adcs/report/estimation_figures.py` → `estimation_metrics.json` + 7 figures `figures/mekf_*.png` (57 runs, ~110 s on 20 processes).
+- `assumptions.md` B-07 (sensors), B-19 (MEKF design), B-20 (measured performance + ★-review optimism numbers).
+- Tests: **1177 passing** (123 new: `test_sensors.py` 44, `test_triad.py` 37, `test_mekf.py` 42; oracles: scipy `Rotation`, `van_loan`, finite differences, χ² statistics, MC covariance).
+
+**Measured** (`adcs/report/estimation_metrics.json`; matched noise models — an ideal-sensor floor, see below)
+
+| Check | Result |
+|---|---|
+| Nadir pointing, 5 orbits: RMS ‖δθ‖ after 1 orbit, sunlit / eclipse | 0.346° / 0.731° (max 2.16°) |
+| Detumble from 3 °/s, 2 orbits | 0.352° / 0.449° (max 0.94°) |
+| Attitude NEES (dof 3), pointing / detumble | 3.00 / 3.21 |
+| NIS mag / sun, pointing | 2.995 / 2.976 (inside 95 % bounds); detumble sun 2.940 is 6e-4 below its lower bound (one seed) |
+| 20-seed MC (3 orbits): per-run NEES / NIS mag / NIS sun | 2.95 ± 0.15 / 3.00 ± 0.02 / 3.00 ± 0.02 |
+| Bias error 0.185 °/s → at 0.25 orbit | 0.0010 °/s; final σ_b ≈ 0.001 °/s/axis |
+| TRIAD RMS (sunlit) vs predicted √(mean trace P) | 4.89° vs 4.91° (MEKF sunlit is ~14× better) |
+| Eclipse σ_att entry → exit (pointing) | 0.29° → 1.04–1.07° (×3.6–3.8); back to 0.28° 300 s after exit |
+| Sensitivity (white, matched): σ_m 15 → 1000 nT; CSS 2.5 → 10° | sunlit 0.31 → 0.40°; 0.20 → 0.48°; eclipse 0.63–0.73° throughout |
+
+**★ Opus review** — no blockers. Verified numerically: Φ vs nonlinear truth (second order), series branch, H/residual/reset signs, unit conversions (ARW = ND/√2 makes 0.015 °/s/√Hz and 0.65 °/√h agree — a doc-writer "discrepancy" was wrong and corrected), whiteness of magnetometer innovations (lag-1 −0.001). Applied: NEES moving-mean spikes (≈ 10) explained as the about-field error's ~150-sample correlation, largest one mid-sunlit, not at eclipse exit; B-20 now quantifies the optimism; sun-NIS moving mean restarted per sunlit pass; "300 s after exit" index; spec 3σ-fraction and TRIAD-predictor wording; Q-discretisation note for the per-sample bias step (2e-5 relative); test 9 now compares at the last eclipse sample and checks the about-field axis is weakest; test 7 now also checks bias 3σ fractions (0.998–0.9996).
+
+**Findings / open items for Group 8**
+- **The results are optimistic.** Filter reference field = truth field, no magnetometer bias, white CSS noise only. Review scratch runs (not in repo, 4 seeds): unmodelled 300 nT mag bias → NEES ≈ 815 (inflating σ_m to 300 nT still NEES ≈ 29); hard ±60° CSS FOV → 8.1° sunlit RMS; crude albedo → 6.4° sunlit. Group 8 needs: an onboard field model independent of truth (e.g. lower-degree IGRF / orbit error), magnetometer bias (states or consider covariance), CSS FOV handling (reconstruct only from lit diodes / least squares) and possibly albedo — at least as a sensitivity case. These scratch numbers should be reproduced by a repo script if they go into the design document.
+- **Gating**: don't simply enable `gate_prob=0.9973` with mismatched models (NIS ≈ 123 would reject nearly every mag update). Monitor NIS first.
+- **Closed loop**: generate the gyro inside the control loop from q_{k−1}, q_k of each 1 s step (`measure_series` on a `log_every > 1` record would silently use dt = 10 s); controller gets ω̂ = mean rate of the previous period (T/2 lag + 0.011 °/s per-sample ARW in the D term); never propagate with gyro row 0 (NaN). Factor `run_mekf`'s loop body into a public stepper shared by batch and closed loop (it currently reads `f._q`, `f.ekf._P`). Keep the `spawn(3)` stream order.
+- **Initialisation**: no estimate until the first valid sun sample (up to ~2170 s if starting in eclipse); `auto` mode's 0.5 °/s detumble threshold would see an uncorrected gyro bias (0.17 °/s norm, 1σ) — use B-dot (magnetometer only) for detumble and gate the switch on the MEKF. `triad_init` has no minimum-angle guard: add α ≥ ~20° (about-field σ = 0.0617/sin α; the orbit's minimum field–sun angle is 20.4°).
+- 10° CSS cell: sun NIS 3.10 — the 0.6 threshold is only 2.8σ / 1.9σ from eclipse / lit at that noise (false detections). Scale the threshold with σ_d if noisier CSS is used.
+- Statistical nits not fixed: test 7's ±5 % pooled-NIS band (~15 standard errors) would not catch a 2 % σ_sun error.
+- Mag-only vs both at the last eclipse sample: σ about the field 0.666° vs 0.660° — almost all sun information is gone by the end of an eclipse.
+- Citations in B-07/B-19 (ADXRS453 datasheet PDF, CSS-10 manual, Markley & Crassidis, Shuster & Oh, Crassidis & Junkins, IEEE 952) are marked unverified; one `TBD` (IGRF model error magnitude) remains in B-07.
+
+**Next: Group 8** (M9: closed loop on the estimate, Monte Carlo, design document). Recommended main-session model: **Opus** (`/model opus`).
