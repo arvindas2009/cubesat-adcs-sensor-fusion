@@ -11,8 +11,8 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 | 5 B physics | M5, M6 | **done** |
 | 6 B control | M7 | **done** |
 | 7 B estimation | M8 | **done** |
-| 8 B closed loop + MC + doc | M9 | next |
-| 9 Packaging + visualizer | M10, M11 | not started |
+| 8 B closed loop + MC + doc | M9 | **done** |
+| 9 Packaging + visualizer | M10, M11 | next |
 
 ## Group 1 — Foundations (M0) — done
 
@@ -258,4 +258,49 @@ Runtime 9–32 s per run (≈ 15k IMU steps/s). Bias estimation (inc 3) cuts hor
 - Mag-only vs both at the last eclipse sample: σ about the field 0.666° vs 0.660° — almost all sun information is gone by the end of an eclipse.
 - Citations in B-07/B-19 (ADXRS453 datasheet PDF, CSS-10 manual, Markley & Crassidis, Shuster & Oh, Crassidis & Junkins, IEEE 952) are marked unverified; one `TBD` (IGRF model error magnitude) remains in B-07.
 
-**Next: Group 8** (M9: closed loop on the estimate, Monte Carlo, design document). Recommended main-session model: **Opus** (`/model opus`).
+Group 8 resolved: closed loop on the estimate with a public MEKF stepper and in-loop gyro sampling; onboard field model ≠ truth, magnetometer bias, CSS FOV and albedo added as truth-side errors with estimator mitigations; TRIAD 20° guard; detumble → pointing switch gated on the MEKF; gating left off.
+
+## Group 8 — Project B closed loop, Monte Carlo, design document (M9) — done · **Project B complete**
+
+**Delivered**
+- `docs/specs/adcs_closed_loop.md` (spec §0–§5 with the main-session prototype numbers and the design-filter tuning record).
+- Sensor realism (py-implementer): `environment.magnetic_field_eci/FieldTable(max_degree=…)`; `sensors.magnetometer(bias=…)`, `gauss_markov`, `SunSensorConfig.fov` (hard cut), `sun_sensor_currents(albedo=…)`, `earth_view_factor` (plate-to-sphere, checked by ray Monte Carlo), `albedo_currents`. All defaults = Group 7 behaviour.
+- `adcs/estimation.py` (main): optional magnetometer-bias states (9-state MEKF), per-diode CSS block updates (gate on the *predicted* cosine > 0.55; gating on the measured current biased NEES to 3.3–4.8), onboard albedo compensation with albedo uncertainty in R, `triad_min_angle`, `init_att_sigma_floor`, public `MEKF.step` (shared by `run_mekf` and the closed loop), `vector_angle`, `css_vector_complete`, `run_mekf(r_eci=…)`, `meta["nis_dof"]`. `MekfConfig()` unchanged.
+- `adcs/simulate.py` (main): `run_closed_loop` (sensors in the loop, gyro from consecutive true attitudes, MEKF against the onboard field, mode machine on the estimate, fallback on estimated rate, controller on q̂/ω̂, truth with `inertia_true`), `ClosedLoopResult`, `summarize_closed_loop`, presets `IDEAL_SENSORS`, `REALISTIC_SENSORS`, `MEKF_G7`, `MEKF_DESIGN`, `ModeConfig`, `SensorErrors`; CLI `python -m adcs.simulate` now runs the closed loop by default (`--knowledge perfect` for Group 6).
+- `adcs/monte_carlo.py` (py-implementer): `draw_run`, `run_one`, `run_campaign`, `aggregate`, `check_requirements`, `REQUIREMENTS`, `save_json`, CLI `python -m adcs.monte_carlo`.
+- Report scripts (figures-runner, main): `adcs/report/closed_loop_figures.py` → `closed_loop_metrics.json` + 5 figures (58 runs, 719 s); `adcs/report/monte_carlo_figures.py` → `figures/mc_*.png` (7) + `monte_carlo_summary.md`; `adcs/report/mc_worst_runs.py` → `mc_worst_runs.json` + `figures/mc_worst_run.png`; `monte_carlo_{design,ideal}.json` (1346 s / 1156 s on 20 workers).
+- `adcs/report/design_document.md` (≈ 6500 words incl. tables): requirements, hardware, architecture/rationale, results by phase (doc-writer draft, hand calculations spot-checked), Monte Carlo, failure modes, conclusions, omissions, traceability.
+- `assumptions.md` B-21 (truth-side errors), B-22 (design MEKF), B-23 (mode machine and onboard knowledge), B-24 (assumed requirements + MC results); B-07 cross-reference.
+- Tests: **1388 passing** (~230 s idle). New: `test_sensor_realism.py` 82, `test_mekf_ext.py` 35, `test_closed_loop.py` 54, `test_monte_carlo.py` 40 (oracles: ppigrf chain, ray Monte Carlo, scipy `Rotation`, finite-difference Jacobians with a textbook EKF update, `van_loan`, χ², the Group 6 perfect-knowledge runner, reconstructed random streams).
+
+**Measured** (simulation; `closed_loop_metrics.json`: 10 °/s, 6 orbits, seeds 0–4, means; `monte_carlo_*.json`: 100 runs each, 2–10 °/s, ±10 % truth inertia)
+
+| Case | Nadir RMS | Nadir max | Knowledge RMS | NEES |
+|---|---|---|---|---|
+| Perfect knowledge | 0.054° | 0.068° | – | – |
+| Ideal sensors + Group 7 filter | 0.53° | 1.92° | 0.51° | 3.05 |
+| Realistic sensors + Group 7 filter | 24.4° | 57.2° | 24.1° | ≈ 6400 |
+| Realistic sensors + design filter | 0.99° | 3.02° | 0.96° | 13.7 |
+| Low-noise check (σ × 0.01, 2 °/s, main-session prototype; test 1 of `test_closed_loop.py`) | 0.0533° vs PK 0.0532°, same switch time | | | |
+
+| Monte Carlo (median / p95 / max) | design campaign | ideal campaign |
+|---|---|---|
+| Detumble [orbits] | 1.22 / 1.88 / 2.29 | 1.21 / 1.63 / 1.89 |
+| Switch to pointing [orbits] | 1.21 / 1.88 / 2.23 | 1.17 / 1.66 / 1.85 |
+| Nadir RMS [°] | 0.962 / 1.25 / 1.46 | 0.503 / 0.635 / 0.733 |
+| Nadir max [°] | 3.15 / 4.44 / 5.19 | 1.84 / 2.90 / 3.59 |
+| All requirements met | 99/100 (run 54 fails REQ-PNT at 5.19°) | 100/100 |
+| 1° RMS goal | 58/100 | 100/100 |
+
+**Decisions and findings (record for Group 9 / later)**
+- **Design filter tuning was time-boxed and post hoc** (σ_mag ∈ {65, 45, 100} nT, σ_albedo ∈ {0.1, 0.25, 0.5}, ARW ×3, RRW ×10 on seeds 0–2); chosen σ_mag 100 nT, σ_albedo 0.5 (B-22). It remains **overconfident** (NEES ≈ 14); the breakdown shows the field-model error drives this (NEES 2.3 without it); bias states matter most (without them NEES 157, nadir RMS 1.45°).
+- **Worst Monte Carlo excursions are knowledge errors outside the filter's 3σ** (control error ≤ 0.36°), 4 of 5 in sunlight 660–825 s after eclipse exit, run 54 433 s after eclipse entry; largest component about body z (`mc_worst_runs.json`). Cause not isolated further.
+- **Late initialisation**: 14/100 design runs initialise TRIAD after 1000 s (all three CSS axes lit + 20° guard); in 2 runs acquisition is delayed 1605 / 2955 s past detumble. TRIAD (diodes mode) cannot initialise in nadir pointing at β ≈ 0 → no re-initialisation in pointing.
+- **The naive filter fails silently**: `real_g7` counts as `success` at 24° true error; the rate-based fallback cannot see a wrong estimate. One RRW ×10 scratch tuning run diverged to 180° unnoticed (not reproduced by a repo script). An innovation monitor is recommended, not implemented.
+- **B-dot gain** (Group 6 open item): with sensors, detumble times at ×1/×2/×4 match Group 6 within 0.2 %; nominal gain kept. Dumping hysteresis not revisited.
+- `success` in `summarize_closed_loop` is internal (switch, no fallback) — it does not look at the true error; use the requirement checks.
+- Mode switch times track the perfect-knowledge detumble (within 163 s on seeds 0–4); nadir RMS shows no visible trend with initial rate or truth inertia error (visual, `mc_sensitivity.png`).
+- Not done: gating in the closed loop (left off), NIS monitor/FDIR, albedo state, orbit-knowledge error, dumping-threshold revisit, sub-stepping convergence (B-17), ★ review (none in the Group 8 task table).
+- Suite time grew to ~230 s (closed-loop and MEKF-extension fixtures ≈ 50 s); `CLAUDE.md` updated.
+
+**Next: Group 9** (M10 packaging/README/smoke test, M11 visualizer). Recommended main-session model: **Sonnet** (`/model sonnet`).

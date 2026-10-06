@@ -134,12 +134,14 @@ def geodetic_height(r_eci, jd) -> np.ndarray:
 # --------------------------------------------------------------------------
 # Geomagnetic field
 # --------------------------------------------------------------------------
-def magnetic_field_eci(r_eci, jd, date: _dt.datetime) -> np.ndarray:
+def magnetic_field_eci(r_eci, jd, date: _dt.datetime, max_degree: int = 13) -> np.ndarray:
     """IGRF magnetic field in ECI (tesla) via ``ppigrf``.
 
     ``r_eci`` ``(3,)`` or ``(N, 3)`` position (m, ECI); ``jd`` scalar or ``(N,)``
     Julian date (days) for the Earth rotation (GMST); ``date`` = ``datetime``
     at which the IGRF coefficients are evaluated (held constant, assumptions B-11).
+    ``max_degree`` = highest spherical-harmonic degree of the IGRF synthesis
+    (default 13 = full IGRF-14; 8 gives an onboard-style truncated model).
     Returns an array of the shape of ``r_eci``.
 
     Chain: ECI -> ECEF (GMST) -> geodetic lat/lon/height -> ``ppigrf.igrf``
@@ -156,7 +158,8 @@ def magnetic_field_eci(r_eci, jd, date: _dt.datetime) -> np.ndarray:
     # NOTE: ppigrf divides by sin(colatitude): NaN/inf exactly at a geographic pole
     # (cannot occur for the 51.6 deg orbit; relevant for polar configs).
     lat, lon, h = ecef_to_lla(eci_to_ecef(r2, jd_arr))
-    be, bn, bu = ppigrf.igrf(np.rad2deg(lon), np.rad2deg(lat), h * 1e-3, date)
+    be, bn, bu = ppigrf.igrf(np.rad2deg(lon), np.rad2deg(lat), h * 1e-3, date,
+                              max_degree=int(max_degree))
     be, bn, bu = be[0], bn[0], bu[0]                       # (N,) nT
     b_ned = np.stack([bn, be, -bu], axis=-1) * 1e-9        # T
     c = dcm_ecef_to_ned(lat, lon)                          # (N, 3, 3), v_ned = C v_ecef
@@ -168,18 +171,19 @@ def magnetic_field_eci(r_eci, jd, date: _dt.datetime) -> np.ndarray:
 class FieldTable:
     """Precomputed geomagnetic field (and orbit/Sun helpers) along an ephemeris.
 
-    ``FieldTable(ephemeris, cfg, t_end, dt=10.0)``: evaluates
+    ``FieldTable(ephemeris, cfg, t_end, dt=10.0, max_degree=13)``: evaluates
     :func:`magnetic_field_eci` (tesla, ECI) once on ``t = 0, dt, ... >= t_end``
     (s since ``cfg.epoch``) and interpolates each component with a cubic
     spline, so closed-loop simulations never call ppigrf per step. The IGRF
     date is ``cfg.epoch``. If the last grid point would exceed
     ``ephemeris.t_end`` it is clipped to ``t_end`` (requires
     ``ephemeris.t_end >= t_end``). Queries outside ``[0, t_end]`` raise
-    ``ValueError``.
+    ``ValueError``. ``max_degree`` (default 13) is forwarded to
+    :func:`magnetic_field_eci` and stored as attribute ``max_degree``.
     """
 
     def __init__(self, ephemeris, cfg: SimConfig = DEFAULT, t_end: float | None = None,
-                 dt: float = 10.0):
+                 dt: float = 10.0, max_degree: int = 13):
         if t_end is None:
             t_end = ephemeris.t_end
         t_end, dt = float(t_end), float(dt)
@@ -194,10 +198,12 @@ class FieldTable:
             grid[-1] = t_end          # t_end > grid[-2] by construction
         self._eph = ephemeris
         self._cfg = cfg
+        self.max_degree = int(max_degree)
         self.t_grid = grid
         self.t_end = float(grid[-1])
         r, _ = ephemeris.at(grid)
-        b = magnetic_field_eci(r, cfg.jd_epoch + grid / 86400.0, cfg.epoch)
+        b = magnetic_field_eci(r, cfg.jd_epoch + grid / 86400.0, cfg.epoch,
+                               max_degree=self.max_degree)
         self._spline = CubicSpline(grid, b, axis=0)
 
     def _check(self, t) -> np.ndarray:

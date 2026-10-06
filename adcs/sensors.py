@@ -26,8 +26,9 @@ Parameters (assumptions.md [B-07]; vendor pages read 2026-10-06)
 Sensor          Part                Datasheet value             Model parameter
 ==============  ==================  ==========================  =====================================
 Magnetometer    PNI RM3100          noise 15 nT                 white noise sigma_m = 15e-9 T per
-                                                                axis; no bias, scale or misalignment,
-                                                                no coil/spacecraft field
+                                                                axis; optional constant body-frame
+                                                                ``bias`` (default none); no scale or
+                                                                misalignment, no coil/spacecraft field
 Gyro            Analog Devices      ARW 0.65 deg/sqrt(h);       ARW sigma_v = 0.65 (pi/180)/60
                 ADXRS453            in-run bias stability       = 1.8908e-4 rad/sqrt(s); bias random
                                     16 deg/h; rate noise        walk sigma_u = b_inst/sqrt(P_orbit)
@@ -38,14 +39,23 @@ Gyro            Analog Devices      ARW 0.65 deg/sqrt(h);       ARW sigma_v = 0.
                                                                 N(0, 0.1 deg/s = 1.7453e-3 rad/s)
                                                                 per axis (design choice)
 Coarse sun      Tensor Tech         "< 5 deg (1-sigma) sun      6 ideal cosine photodiodes (faces
-sensor          CSS-10, x6          determination accuracy"     +-x, +-y, +-z), hemispherical response,
-                                    after calibration; +-60 deg FOV/albedo/Earth IR not modelled;
-                                    FOV                         per-diode white noise sigma_d = 0.0436
+sensor          CSS-10, x6          determination accuracy"     +-x, +-y, +-z), hemispherical response
+                                    after calibration; +-60 deg FOV only if ``SunSensorConfig.fov`` is
+                                    FOV                         set (default None = full hemisphere);
+                                                                albedo only if passed (``albedo=``);
+                                                                Earth IR not modelled; per-diode
+                                                                white noise sigma_d = 0.0436
                                                                 of full-scale current -> reconstructed
                                                                 vector per-axis noise sqrt(2) sigma_d
                                                                 = 0.0617, total angle error
                                                                 sqrt(2)*0.0617 rad = 5.0 deg (1-sigma)
 ==============  ==================  ==========================  =====================================
+
+Optional realism (Group 8, ``docs/specs/adcs_closed_loop.md`` section 1): magnetometer
+``bias``, CSS field-of-view cutoff ``SunSensorConfig.fov``, Earth-albedo currents
+(:func:`albedo_currents`, :func:`earth_view_factor`) and the :func:`gauss_markov` series
+generator.  All default to off, i.e. the Group 7 behaviour, and none of them changes the
+noise draws of the existing sensors.
 
 Randomness only enters through ``numpy.random.Generator`` objects passed in or created
 from ``seed`` (no global state).
@@ -55,8 +65,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 
 import numpy as np
+from scipy.signal import lfilter
 
 from common import quaternion as quat
+from common.frames import R_EARTH
 
 __all__ = [
     "CSS_NORMALS",
@@ -64,7 +76,10 @@ __all__ = [
     "SunSensorConfig",
     "GyroConfig",
     "magnetometer",
+    "gauss_markov",
     "sun_sensor_currents",
+    "earth_view_factor",
+    "albedo_currents",
     "sun_vector_from_currents",
     "Gyro",
     "mean_rates",
@@ -101,10 +116,12 @@ class SunSensorConfig:
     (dimensionless).  ``threshold``: minimum summed current (fraction of full scale)
     for a valid sun measurement.  0.6 puts eclipse false detections at 5.6 sigma of
     the summed noise (sqrt(6) sigma_d = 0.107) and lit misses (sum >= 1) at 3.7 sigma.
+    ``fov``: half-angle of each diode's field of view (rad); ``None`` = full hemisphere.
     """
 
     sigma_diode: float = 0.0436
     threshold: float = 0.6
+    fov: float | None = None
 
     @property
     def sigma_vector(self) -> float:
@@ -126,29 +143,142 @@ def _f(x) -> np.ndarray:
     return np.asarray(x, dtype=float)
 
 
-def magnetometer(b_body, rng: np.random.Generator, cfg: MagnetometerConfig = MagnetometerConfig()) -> np.ndarray:
-    """Magnetometer reading ``(..., 3)`` [T] in body axes: ``b_body + N(0, sigma^2 I)``.
+def magnetometer(
+    b_body, rng: np.random.Generator, cfg: MagnetometerConfig = MagnetometerConfig(), bias=None
+) -> np.ndarray:
+    """Magnetometer reading ``(..., 3)`` [T] in body axes: ``b_body + bias + N(0, sigma^2 I)``.
 
-    ``b_body (..., 3)`` is the true field in body axes [T].  Not mutated.
+    ``b_body (..., 3)`` is the true field in body axes [T].  ``bias`` (3,) [T], body axes,
+    broadcast over the leading dimensions; ``None`` = 0.  The noise draw is identical with
+    or without ``bias``.  Inputs are not mutated.
     """
     b = _f(b_body)
-    return b + rng.normal(0.0, cfg.sigma, size=b.shape)
+    noise = rng.normal(0.0, cfg.sigma, size=b.shape)
+    if bias is None:
+        return b + noise
+    return b + _f(bias) + noise
+
+
+def gauss_markov(n: int, dt: float, sigma: float, tau: float, rng: np.random.Generator, dim: int = 3) -> np.ndarray:
+    """Stationary first-order Gauss-Markov series, shape ``(n, dim)``, unit of ``sigma``.
+
+    ``x_0 = sigma w_0``, ``x_k = a x_{k-1} + sigma sqrt(1 - a^2) w_k``, ``a = exp(-dt/tau)``,
+    ``w = rng.standard_normal((n, dim))`` drawn in one call (row k <-> ``w_k``).  ``dt``
+    sample period [s], ``tau`` correlation time [s].  ``sigma == 0`` returns zeros without
+    drawing.  ``ValueError`` if ``n < 1``, ``dt <= 0``, ``tau <= 0`` or ``sigma < 0``.
+    """
+    n = int(n)
+    if n < 1:
+        raise ValueError("gauss_markov: n must be >= 1")
+    if not dt > 0.0:
+        raise ValueError("gauss_markov: dt must be > 0")
+    if not tau > 0.0:
+        raise ValueError("gauss_markov: tau must be > 0")
+    if not sigma >= 0.0:
+        raise ValueError("gauss_markov: sigma must be >= 0")
+    if sigma == 0.0:
+        return np.zeros((n, dim))
+    a = float(np.exp(-dt / tau))
+    w = rng.standard_normal((n, dim))
+    u = (sigma * np.sqrt(1.0 - a * a)) * w
+    u[0] = sigma * w[0]
+    return lfilter([1.0], [1.0, -a], u, axis=0)
 
 
 def sun_sensor_currents(
-    s_body, lit, rng: np.random.Generator, cfg: SunSensorConfig = SunSensorConfig()
+    s_body, lit, rng: np.random.Generator, cfg: SunSensorConfig = SunSensorConfig(), albedo=None
 ) -> np.ndarray:
     """Six photodiode currents ``(..., 6)`` [fraction of full scale], order of ``CSS_NORMALS``.
 
     ``s_body (..., 3)`` unit sun direction in body axes, ``lit (...)`` bool (False in
-    eclipse).  Current ``= where(lit, max(0, n_i . s_body), 0) + N(0, sigma_d^2)`` on all
-    six diodes (also in eclipse); noisy currents may be slightly negative.
+    eclipse).  With ``c_i = n_i . s_body`` the direct term is ``where(lit, max(0, c_i), 0)``
+    (``cfg.fov is None``) or ``where(lit, c_i if c_i > cos(fov) else 0, 0)`` (hard field-of-view
+    cutoff; for ``fov > pi/2`` the threshold is limited to 0, i.e. never beyond the
+    hemisphere).  ``albedo (..., 6)`` [fraction of full scale] (``None`` = 0) is then added
+    regardless of ``lit`` and ``fov``, and ``N(0, sigma_d^2)`` on all six diodes (also in
+    eclipse; noisy currents may be slightly negative).  The noise draw does not depend on
+    ``albedo`` or ``fov``.
     """
     s = _f(s_body)
     lit = np.asarray(lit, dtype=bool)
     cos_inc = s @ CSS_NORMALS.T
-    clean = np.where(lit[..., None], np.maximum(cos_inc, 0.0), 0.0)
+    if cfg.fov is None:
+        clean = np.where(lit[..., None], np.maximum(cos_inc, 0.0), 0.0)
+    else:
+        cos_fov = max(float(np.cos(cfg.fov)), 0.0)
+        clean = np.where(lit[..., None] & (cos_inc > cos_fov), cos_inc, 0.0)
+    if albedo is not None:
+        clean = clean + _f(albedo)
     return clean + rng.normal(0.0, cfg.sigma_diode, size=clean.shape)
+
+
+def earth_view_factor(phi, r_norm, re: float = R_EARTH) -> np.ndarray:
+    """View factor ``F`` from a differential plate to a sphere (Earth), dimensionless.
+
+    ``phi`` [rad]: angle between the plate normal and the direction from the plate to the
+    sphere centre; ``r_norm`` [m]: distance of the plate from the sphere centre; ``re`` [m]:
+    sphere radius.  Broadcasting over ``phi`` and ``r_norm``.  With ``H = r/re``,
+    ``rho = asin(1/H)``, ``x = sqrt(H^2 - 1)``: ``F = cos(phi)/H^2`` for
+    ``phi <= pi/2 - rho``; ``F = 1/2 - asin(x/(H sin phi))/pi + (cos(phi) acos(-x cot phi)
+    - x sqrt(1 - H^2 cos^2 phi))/(pi H^2)`` for ``pi/2 - rho < phi < pi/2 + rho``; 0 beyond
+    (standard "differential planar element to sphere" configuration factor, Howell catalog;
+    entry unverified).  ``ValueError`` if any ``r_norm <= re``.
+    """
+    phi_a, r_a = np.broadcast_arrays(_f(phi), _f(r_norm))
+    if np.any(r_a <= re):
+        raise ValueError("earth_view_factor: r_norm must be > re")
+    shape = phi_a.shape
+    ph = phi_a.reshape(-1)
+    h = r_a.reshape(-1) / re
+    rho = np.arcsin(1.0 / h)
+    out = np.zeros(ph.shape)
+
+    full = ph <= 0.5 * np.pi - rho
+    out[full] = np.cos(ph[full]) / h[full] ** 2
+
+    part = (ph > 0.5 * np.pi - rho) & (ph < 0.5 * np.pi + rho)
+    if np.any(part):
+        p, hh, rh = ph[part], h[part], rho[part]
+        x = np.sqrt(hh * hh - 1.0)
+        cp = np.cos(p)
+        # w = sqrt(1 - H^2 cos^2 phi) = sqrt((1 - u)(1 + u)), u = H cos(phi), evaluated without
+        # cancellation near both ends of the interval (d1, d2 = distance to either end, rad):
+        # 1 - u = 2 sin^2(d1/2) + x sin d1, 1 + u = 2 sin^2(d2/2) + x sin d2.  The same w gives
+        # asin(x/(H sin phi)) = atan2(x, w) since H^2 sin^2 phi - x^2 = w^2.
+        d1 = p - (0.5 * np.pi - rh)
+        d2 = (0.5 * np.pi + rh) - p
+        w = np.sqrt((2.0 * np.sin(0.5 * d1) ** 2 + x * np.sin(d1))
+                    * (2.0 * np.sin(0.5 * d2) ** 2 + x * np.sin(d2)))
+        a1 = np.arctan2(x, w)
+        a2 = np.arctan2(w, -x * cp)          # = acos(-x cot phi), since 1 - x^2 cot^2 phi = w^2/sin^2 phi
+        out[part] = 0.5 - a1 / np.pi + (cp * a2 - x * w) / (np.pi * hh * hh)
+    return out.reshape(shape)
+
+
+def albedo_currents(q, r_eci, s_eci, albedo, re: float = R_EARTH) -> np.ndarray:
+    """Extra CSS currents ``(..., 6)`` [fraction of full scale] from Earth albedo.
+
+    ``q (..., 4)`` body-to-ECI attitude, ``r_eci (..., 3)`` spacecraft position [m, ECI],
+    ``s_eci (..., 3)`` unit Earth-to-Sun vector (ECI), ``albedo`` scalar or ``(...)``
+    albedo coefficient [-], ``re`` Earth radius [m].  Order of ``CSS_NORMALS``.
+
+    ``nadir_b = R(q)^T (-r_hat)`` (body axes), ``phi_i = acos(n_i . nadir_b)``,
+    ``I_i = albedo F(phi_i, |r|) max(0, s_hat . r_hat)``.  Assumptions: diode full scale =
+    one solar constant at normal incidence; Lambertian Earth with uniform albedo; the whole
+    visible cap is lit as the cosine of the solar zenith angle at the sub-satellite point
+    (so zero whenever ``s_hat . r_hat <= 0``, including eclipse); diode cosine response over
+    the full view factor (no field-of-view limit on albedo).
+    """
+    q = _f(q)
+    r = _f(r_eci)
+    s = _f(s_eci)
+    rn = np.linalg.norm(r, axis=-1)
+    r_hat = r / rn[..., None]
+    nadir_b = quat.rotate_inverse(q, -r_hat)
+    phi = np.arccos(np.clip(nadir_b @ CSS_NORMALS.T, -1.0, 1.0))
+    illum = np.maximum(np.sum(s * r_hat, axis=-1), 0.0)
+    f = earth_view_factor(phi, rn[..., None], re)
+    return _f(albedo)[..., None] * f * illum[..., None]
 
 
 def sun_vector_from_currents(currents, cfg: SunSensorConfig = SunSensorConfig()):

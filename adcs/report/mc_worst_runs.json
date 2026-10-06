@@ -1,0 +1,157 @@
+{
+ "source": "monte_carlo_design.json",
+ "n": 5,
+ "runs": [
+  {
+   "index": 54,
+   "rate_degps": 5.8217862035763845,
+   "inertia_scale": [
+    0.9372962603074259,
+    0.9344264482654461,
+    0.9997874515456546
+   ],
+   "nadir_max_deg": 5.191327007928395,
+   "nadir_rms_deg": 1.4115331816824948,
+   "t_max_s": 24304.0,
+   "t_max_orbits": 4.376241317909673,
+   "sunlit_at_max": false,
+   "time_since_last_transition_s": 433.0,
+   "transition": "eclipse entry",
+   "know_err_at_max_deg": 4.9315987147714235,
+   "know_err_vec_at_max_deg": [
+    1.9692445730695638,
+    2.4348433020331464,
+    -3.8097611197443273
+   ],
+   "ctrl_err_at_max_deg": 0.27049162192517495,
+   "att_3sigma_at_max_deg": 2.7153644634879592,
+   "frac_steady_above_4deg": 0.03464683327943826,
+   "frac_steady_above_5deg": 0.0014782648865893657,
+   "frac_steady_know_outside_3sigma": 0.10338615050584377,
+   "nees_mean": 13.541142988366394,
+   "mag_bias_true_nT": 348.2372154347222,
+   "mag_bias_err_end_nT": 16.98723123591844
+  },
+  {
+   "index": 20,
+   "rate_degps": 5.398134509970954,
+   "inertia_scale": [
+    1.0804622121676015,
+    1.069428384874162,
+    1.0353004600224593
+   ],
+   "nadir_max_deg": 4.963304501694325,
+   "nadir_rms_deg": 1.4608438187615573,
+   "t_max_s": 21255.0,
+   "t_max_orbits": 3.8272304646218775,
+   "sunlit_at_max": true,
+   "time_since_last_transition_s": 763.0,
+   "transition": "sunlit start (eclipse exit)",
+   "know_err_at_max_deg": 4.756605670328581,
+   "know_err_vec_at_max_deg": [
+    2.147640092173017,
+    -1.2684710127025063,
+    -4.050175406994932
+   ],
+   "ctrl_err_at_max_deg": 0.25457400931862884,
+   "att_3sigma_at_max_deg": 3.1511074782516886,
+   "frac_steady_above_4deg": 0.01160662685417068,
+   "frac_steady_above_5deg": 0.0,
+   "frac_steady_know_outside_3sigma": 0.10836062415719515,
+   "nees_mean": 16.171773514350203,
+   "mag_bias_true_nT": 413.5677598851184,
+   "mag_bias_err_end_nT": 4.628159415378231
+  },
+  {
+   "index": 35,
+   "rate_degps": 3.8636278163636377,
+   "inertia_scale": [
+    0.9616166127205229,
+    1.0106937907715754,
+    0.937693979401232
+   ],
+   "nadir_max_deg": 4.779731786982964,
+   "nadir_rms_deg": 1.1327913561292358,
+   "t_max_s": 10215.0,
+   "t_max_orbits": 1.8393394117201824,
+   "sunlit_at_max": true,
+   "time_since_last_transition_s": 814.0,
+   "transition": "sunlit start (eclipse exit)",
+   "know_err_at_max_deg": 4.685589321746384,
+   "know_err_vec_at_max_deg": [
+    -2.3811481004877373,
+    2.1979389669989216,
+    3.384367786301468
+   ],
+   "ctrl_err_at_max_deg": 0.10289473610555526,
+   "att_3sigma_at_max_deg": 2.6658403980846206,
+   "frac_steady_above_4deg": 0.0064603301946543935,
+   "frac_steady_above_5deg": 0.0,
+   "frac_steady_know_outside_3sigma": 0.05721403538403074,
+   "nees_mean": 17.04199037527487,
+   "mag_bias_true_nT": 157.39580117831102,
+   "mag_bias_err_end_nT": 20.37767844057981
+  },
+  {
+   "index": 73,
+   "rate_degps": 4.002502777557526,
+   "inertia_scale": [
+    0.950749991183316,
+    1.0210310204565594,
+    0.9212196408019323
+   ],
+   "nadir_max_deg": 4.658968597449885,
+   "nadir_rms_deg": 1.1181397036630054,
+   "t_max_s": 32248.0,
+   "t_max_orbits": 5.80665857554111,
+   "sunlit_at_max": true,
+   "time_since_last_transition_s": 664.0,
+   "transition": "sunlit start (eclipse exit)",
+   "know_err_at_max_deg": 4.3919213880719905,
+   "know_err_vec_at_max_deg": [
+    1.0648584435701214,
+    -0.8017213627671578,
+    -4.1847691490265495
+   ],
+   "ctrl_err_at_max_deg": 0.27997843647199644,
+   "att_3sigma_at_max_deg": 3.3934145926440284,
+   "frac_steady_above_4deg": 0.007285714285714286,
+   "frac_steady_above_5deg": 0.0,
+   "frac_steady_know_outside_3sigma": 0.038380952380952384,
+   "nees_mean": 13.418966131488348,
+   "mag_bias_true_nT": 120.5322650641679,
+   "mag_bias_err_end_nT": 11.874426406974525
+  },
+  {
+   "index": 10,
+   "rate_degps": 8.705004783687729,
+   "inertia_scale": [
+    0.9325020018978569,
+    1.0669879140500886,
+    0.9438538011315943
+   ],
+   "nadir_max_deg": 4.524393450620355,
+   "nadir_rms_deg": 0.8988311340682364,
+   "t_max_s": 15771.0,
+   "t_max_orbits": 2.839767191604405,
+   "sunlit_at_max": true,
+   "time_since_last_transition_s": 825.0,
+   "transition": "sunlit start (eclipse exit)",
+   "know_err_at_max_deg": 4.170182308200474,
+   "know_err_vec_at_max_deg": [
+    2.3613487880790096,
+    -1.365353775366644,
+    -3.1544035018935146
+   ],
+   "ctrl_err_at_max_deg": 0.3571963804618638,
+   "att_3sigma_at_max_deg": 2.69945672266801,
+   "frac_steady_above_4deg": 0.003061522013801147,
+   "frac_steady_above_5deg": 0.0,
+   "frac_steady_know_outside_3sigma": 0.020896102633880843,
+   "nees_mean": 12.844313804070373,
+   "mag_bias_true_nT": 292.62197642667843,
+   "mag_bias_err_end_nT": 9.96095387824834
+  }
+ ],
+ "n_max_in_eclipse": 1
+}

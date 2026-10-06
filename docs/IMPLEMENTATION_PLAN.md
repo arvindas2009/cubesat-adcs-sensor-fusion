@@ -17,8 +17,8 @@
 | 5 Project B physics (orbit, environment, dynamics, disturbances) | M5, M6 | Sonnet | ✅ done (commit see `git log`, 898 tests) |
 | 6 Project B control (perfect knowledge) | M7 | Opus | ✅ done (commit see `git log`, 1054 tests) |
 | 7 Project B attitude determination | M8 | Opus | ✅ done (commit see `git log`, 1177 tests) |
-| 8 Project B closed loop + Monte Carlo + design doc | M9 | Opus | ⏭ **next** |
-| 9 Packaging + 3D visualizer | M10, M11 | Sonnet | not started |
+| 8 Project B closed loop + Monte Carlo + design doc | M9 | Opus | ✅ done (commit see `git log`, 1388 tests) — Project B complete |
+| 9 Packaging + 3D visualizer | M10, M11 | Sonnet | ⏭ **next** |
 
 Details of what each completed group delivered, measured numbers, and open decisions live in `PROGRESS.md`.
 
@@ -187,7 +187,7 @@ Why grouped: sensors, TRIAD and MEKF form one estimation stack validated togethe
 
 **Exit:** v1 M8 exit. → **STOP, wait.**
 
-### Group 8 — Project B closed loop, Monte Carlo, design document (M9) · main session: **Opus**
+### Group 8 — Project B closed loop, Monte Carlo, design document (M9) · main session: **Opus** · ✅ done
 Why grouped: Monte Carlo and the design document are both direct outputs of the closed-loop sim.
 
 **Before writing the Group 8 spec:** read `PROGRESS.md` → Group 7 → "Findings / open items for Group 8" (onboard field model ≠ truth, magnetometer bias, CSS FOV/albedo, in-loop gyro sampling, public MEKF stepper, TRIAD minimum angle, gating, detumble→pointing switch on the estimate) and `assumptions.md` B-20 "Scope and optimism". Review scratch scripts behind those numbers: `docs/review_scratch/group7/`.
@@ -203,6 +203,8 @@ Why grouped: Monte Carlo and the design document are both direct outputs of the 
 **Exit:** v1 M9 exit — **Project B done.** → **STOP, wait.**
 
 ### Group 9 — Packaging, reproducibility, visualizer (M10 + M11) · main session: **Sonnet**
+
+**Before starting:** read `PROGRESS.md` → Group 8 "Decisions and findings". One-command reproduction for Project B: `python -m adcs.simulate` (closed loop, default realistic sensors + design filter), `python -m adcs.report.closed_loop_figures` (~12 min), `python -m adcs.monte_carlo` (~45 min on 20 processes), `python -m adcs.report.mc_worst_runs`, plus the Group 5–7 figure scripts. Headline numbers: `adcs/report/design_document.md` (Summary) and `adcs/report/monte_carlo_summary.md`.
 Why grouped: both are polish on finished work; M11 still gated on M10 passing within the group.
 
 | Task | Who | Model |
