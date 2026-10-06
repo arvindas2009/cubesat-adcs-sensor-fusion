@@ -15,8 +15,8 @@
 | 3 Project A 15-state EKF | M3 | Opus | ✅ done (commit see `git log`, 664 tests) |
 | 4 Project A tuning + writeup | M4 | Sonnet | ✅ done (commit see `git log`, 722 tests) — Project A complete |
 | 5 Project B physics (orbit, environment, dynamics, disturbances) | M5, M6 | Sonnet | ✅ done (commit see `git log`, 898 tests) |
-| 6 Project B control (perfect knowledge) | M7 | Opus | ⏭ **next** |
-| 7 Project B attitude determination | M8 | Opus | not started |
+| 6 Project B control (perfect knowledge) | M7 | Opus | ✅ done (commit see `git log`, 1054 tests) |
+| 7 Project B attitude determination | M8 | Opus | ⏭ **next** |
 | 8 Project B closed loop + Monte Carlo + design doc | M9 | Opus | not started |
 | 9 Packaging + 3D visualizer | M10, M11 | Sonnet | not started |
 
@@ -161,7 +161,7 @@ Why grouped: all "truth model" physics, no feedback loop yet; modules are fully 
 
 **Exit:** v1 M5 + M6 exits. → **STOP, wait.**
 
-### Group 6 — Project B control, perfect knowledge (M7) · main session: **Opus**
+### Group 6 — Project B control, perfect knowledge (M7) · main session: **Opus** · ✅ done
 Why grouped: detumble, pointing and dumping share the actuator models and interact (dumping uses torquers while wheels point).
 
 | Task | Who | Model |

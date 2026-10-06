@@ -9,8 +9,8 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 | 3 A 15-state EKF | M3 | **done** |
 | 4 A tuning + writeup | M4 | **done** |
 | 5 B physics | M5, M6 | **done** |
-| 6 B control | M7 | next |
-| 7 B estimation | M8 | not started |
+| 6 B control | M7 | **done** |
+| 7 B estimation | M8 | next |
 | 8 B closed loop + MC + doc | M9 | not started |
 | 9 Packaging + visualizer | M10, M11 | not started |
 
@@ -185,4 +185,41 @@ Runtime 9–32 s per run (≈ 15k IMU steps/s). Bias estimation (inc 3) cuts hor
 - Open nits not fixed: `atol` 1e-6 applies to both metres and m/s in `propagate`; `sgp4_ephemeris` takes `jd0` as one double (≤ 0.3 m); the spec test 6 mentions both 0.05° and 0.1° for the equinox declination (0.05° used); the Sun-algorithm transcription test is not independent (the equinox/solstice tests are).
 - Citations in B-01…B-15 marked "unverified" (CubeSat Design Spec rev., Vallado table/equation numbers, Wertz, IGRF) must be checked before external use. TLE: python-sgp4 documentation example (epoch 2019-12-09), used only for the SGP4 comparison.
 
-**Next: Group 6** (M7: B-dot detumble, wheel pointing, momentum dumping; actuators). Recommended main-session model: **Opus** (`/model opus`).
+## Group 6 — Project B control, perfect knowledge (M7) — done
+
+**Delivered**
+- `docs/specs/adcs_control.md` (spec; test thresholds set after a main-session prototype, measured values in brackets).
+- `adcs/actuators.py` (py-implementer): `MagnetorquerConfig` (0.2 A·m²/axis, ISIS iMTQ; 1 s control period, duty 0.8 — magnetometer sampled with coils off), `WheelConfig` (CubeSpace CW0017: 0.23 mN·m, 1.77 mN·m·s at 8000 rpm, derived J_s = 2.1128e-6 kg·m²; 3 wheels on body axes), `saturate_dipole`, `magnetorquer_torque`, `wheel_speed`/`wheel_momentum`, `limit_wheel_torque` (torque clip + speed limit that a held command cannot cross). Datasheet values read from the vendor pages on 2026-10-06 (main session, WebFetch).
+- `adcs/control.py` (main): B-dot on the field direction with the Avanzini & Giulietti (2012) gain `k = 2n(1 + sin i)J_min` = 2.69e-5 N·m·s; rate-limited quaternion-error PD (wn 0.1 rad/s, ζ 0.7, slew limit 0.5 deg/s) with gyroscopic and reference-rate feed-forward (error dynamics `I δω̇ = −Kp err − Kd δω + τ_d`, derivation in the docstring); `nadir_reference` (LVLH rotates at −n about LVLH y); cross-product dumping `m = (k/|B|²) h × B` (k 1e-3 1/s) with hysteresis 0.3/0.05 of max wheel speed; magnetorquer torque fed forward to the wheels.
+- `adcs/simulate.py` (main): perfect-knowledge runner, ZOH per 1 s control period, RK4 0.8 s (coils on) + 0.2 s (off), modes `detumble`/`pointing`/`auto` (switch after |ω| < 0.5 deg/s for 60 s), `SimResult`, `tumble_state`, `lvlh_state`, `detumble_time`, CLI `python -m adcs.simulate --scenario …`. Group 8 adds sensors + MEKF here.
+- `adcs/dynamics.py`: internal speed-up only (`_cross` for 3-vectors; `np.cross` cost ~40 µs/call); API and results unchanged (existing tests green).
+- `adcs/report/control_figures.py` → `control_metrics.json` + `figures/{detumble,detumble_sensitivity,pointing_15orbits,auto_detumble_to_nadir}.png` (93 runs, 562 s on 20 processes).
+- `assumptions.md` B-05, B-06 filled; B-16 (control laws/gains/decisions), B-17 (discretisation), B-18 (detumble benchmark) added.
+- Tests: **1054 passing** (~130 s; 156 new in `adcs/tests/test_{actuators,control,simulate_pk}.py`). Oracles: hand values, closed-form B-dot dissipation for finite dt, own RK4 loop for energy monotonicity, finite-difference LVLH rate, scipy `Rotation`, H_i conservation. The simulation tests run their five scenarios in a process pool (fixture), ~80 s of the suite.
+
+**Measured (`adcs/report/control_metrics.json`, perfect knowledge)**
+
+| Check | Result | Target |
+|---|---|---|
+| Detumble 10 deg/s → < 0.5 deg/s, 0.2 A·m², seeds 0–4 | 1.14 / 1.62 / 1.68 / 0.88 / 1.51 orbits (mean 1.36) | 1–3 orbits ✅ |
+| Rate floor after detumble | ≈ 0.1–0.2 deg/s (≈ 2n field-tracking) | — |
+| Sensitivity (mean, seeds 0–2) | 2 → 30 deg/s: 0.66 → 2.2 orbits at 0.2 A·m²; only 0.05 A·m² at 30 deg/s exceeds 3 orbits (3.50) | — |
+| Gain scale ×0.25 / 0.5 / 1 / 2 / 4 at 10 deg/s | 3 of 5 not detumbled in 6 orbits / 2.92 / 1.36 / 0.73 / 0.43 orbits | — |
+| Nadir pointing 15 orbits, dumping on (after orbit 1) | max 0.078°, RMS 0.053°; wheels ≤ 0.30 of max speed | < 1° ✅ |
+| Dumping off | y wheel saturates at 3.73 orbits; attitude lost (max 179.9°) | demonstrates need ✅ |
+| Auto 10 deg/s → nadir | switch at 1.15 orbits; error ≤ 0.066° from switch + 1 orbit | — |
+| No disturbances (test) | 0.0013° after 1000 s, H_i drift 2e-12 | — |
+
+**Decisions and findings (record for later groups)**
+- **B-dot gain kept at the cited nominal value**, although 2× / 4× detumble faster with perfect knowledge (0.73 / 0.43 orbits): a higher gain amplifies magnetometer noise in the finite-difference Ḃ. Revisit in Group 8 with sensor noise.
+- `m_max` barely binds at the nominal gain (0.2 and 0.4 A·m² curves nearly coincide; the peak dipole in auto mode is 0.144 A·m²).
+- **Dumping is effectively continuous**: in the 15-orbit run it is active 92 % of the time; the y wheel settles near 0.1 of max speed (~700 rpm in the figure), where the dumping torque balances the secular aero torque (mean τ_y ≈ 8.8e-8 N·m, prototype), so the 0.05 off threshold is never reached. Peak dipole only 0.01 A·m². Harmless with perfect knowledge; in Group 8 the coil activity affects the magnetometer only through the duty cycle (sampled with coils off). Raising `dump_off` to ~0.15 or `dump_k` would make the hysteresis cycle — not done.
+- Steady pointing error (~0.05–0.08°) is set by disturbance / Kp (z axis has the smallest inertia); no integral term (not needed for the 1° target).
+- `nadir_reference` ignores the J2 out-of-plane LVLH rotation (≈ 1e-6 rad/s, test 9).
+- Held wheel torque lets the wheel speed exceed the limit by ≤ 1.3e-6 relative (ω changes within the period); tests allow 1e-5.
+- The pointing test scenario preloads the y wheel to 0.9 h_max so that dumping on/off is tested within 1 orbit (secular growth ≈ 28 % of h_max per orbit).
+- B-17: no sub-stepping convergence check of the 1 s ZOH / RK4 discretisation was run.
+- Citations: vendor pages (read 2026-10-06) for iMTQ and CW0017; Avanzini & Giulietti 2012 and the LAPAN 3U study (B-18), Wie and Numerical Recipes (added by doc-writer) are marked unverified.
+- No ★ review in this group (none in the task table); signs were checked by tests (dissipation, closed-loop error dynamics, LVLH rate vs finite differences, dumping torque identity).
+
+**Next: Group 7** (M8: sensors, TRIAD, MEKF). Recommended main-session model: **Opus** (`/model opus`).

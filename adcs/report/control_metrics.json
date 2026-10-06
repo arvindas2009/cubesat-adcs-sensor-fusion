@@ -1,0 +1,718 @@
+{
+  "config": {
+    "orbital_period_s": 5553.624271252228,
+    "altitude_m": 400000.0,
+    "inclination_deg": 51.6,
+    "inertia_diag_kg_m2": [
+      0.04186666666666667,
+      0.04186666666666667,
+      0.006666666666666668
+    ],
+    "bdot_k_nominal_N_m_s": 2.6906817305101475e-05,
+    "magnetorquer": {
+      "m_max_A_m2": 0.2,
+      "control_period_s": 1.0,
+      "duty": 0.8,
+      "on_time_s": 0.8
+    },
+    "wheel": {
+      "max_torque_N_m": 0.00023,
+      "rated_momentum_N_m_s": 0.00177,
+      "rated_speed_rpm": 8000.0,
+      "max_speed_rad_s": 837.7580409572781,
+      "spin_inertia_kg_m2": 2.112781869544911e-06
+    },
+    "pointing_gains": {
+      "wn_rad_s": 0.1,
+      "zeta": 0.7,
+      "rate_limit_rad_s": 0.008726646259971648
+    },
+    "control_config_defaults": {
+      "dump_k_per_s": 0.001,
+      "dump_on": 0.3,
+      "dump_off": 0.05,
+      "detumble_threshold_rad_s": 0.008726646259971648,
+      "detumble_hold_s": 60.0,
+      "disturbances": true
+    },
+    "log_every_control_periods": 10,
+    "time_resolution_of_detumble_times_s": 10.0
+  },
+  "detumble": {
+    "initial_rate_deg_s": 10.0,
+    "m_max_A_m2": 0.2,
+    "n_orbits": 3,
+    "threshold_deg_s": 0.5,
+    "log_resolution_s": 10.0,
+    "bdot_k_N_m_s": 2.6906817305101475e-05,
+    "per_seed": {
+      "0": {
+        "detumble_time_s": 6310.0,
+        "detumble_time_orbits": 1.1361949767943564,
+        "final_rate_deg_s": 0.19475586222974833,
+        "final_kinetic_energy_ratio": 0.00031327009629755103
+      },
+      "1": {
+        "detumble_time_s": 9000.0,
+        "detumble_time_orbits": 1.620563358343773,
+        "final_rate_deg_s": 0.19964526235840865,
+        "final_kinetic_energy_ratio": 9.28736155563966e-05
+      },
+      "2": {
+        "detumble_time_s": 9330.0,
+        "detumble_time_orbits": 1.679984014816378,
+        "final_rate_deg_s": 0.20483505058810322,
+        "final_kinetic_energy_ratio": 0.000352899297353774
+      },
+      "3": {
+        "detumble_time_s": 4880.0,
+        "detumble_time_orbits": 0.878705465413068,
+        "final_rate_deg_s": 0.19797008170719024,
+        "final_kinetic_energy_ratio": 0.0005383347360725804
+      },
+      "4": {
+        "detumble_time_s": 8370.0,
+        "detumble_time_orbits": 1.507123923259709,
+        "final_rate_deg_s": 0.09770280839487505,
+        "final_kinetic_energy_ratio": 0.0001026554320270065
+      }
+    },
+    "max_detumble_time_orbits": 1.679984014816378,
+    "mean_detumble_time_orbits": 1.3645143477254567,
+    "all_seeds_detumbled": true
+  },
+  "detumble_sensitivity": {
+    "max_orbits_simulated": 6.0,
+    "threshold_deg_s": 0.5,
+    "log_resolution_s": 10.0,
+    "not_detumbled_representation": "null + flag 'not detumbled within 6 orbits'",
+    "mmax_grid": {
+      "rates_deg_s": [
+        2.0,
+        5.0,
+        10.0,
+        20.0,
+        30.0
+      ],
+      "m_max_A_m2": [
+        0.05,
+        0.1,
+        0.2,
+        0.4
+      ],
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "bdot_k_N_m_s": 2.6906817305101475e-05,
+      "cells": {
+        "m_max=0.05|rate=2": {
+          "detumble_time_orbits_per_seed": [
+            0.34932143502076884,
+            0.7850729158198723,
+            0.8336898165701855
+          ],
+          "detumble_time_s_per_seed": [
+            1940.0,
+            4360.0,
+            4630.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 0.6560280558036089,
+          "mean_orbits_detumbled_only": 0.6560280558036089,
+          "min_orbits": 0.34932143502076884,
+          "max_orbits": 0.8336898165701855
+        },
+        "m_max=0.05|rate=5": {
+          "detumble_time_orbits_per_seed": [
+            0.8066804272644559,
+            1.3198588240733173,
+            1.3324632057493244
+          ],
+          "detumble_time_s_per_seed": [
+            4480.0,
+            7330.0,
+            7400.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.1530008190290324,
+          "mean_orbits_detumbled_only": 1.1530008190290324,
+          "min_orbits": 0.8066804272644559,
+          "max_orbits": 1.3324632057493244
+        },
+        "m_max=0.05|rate=10": {
+          "detumble_time_orbits_per_seed": [
+            1.316257572165887,
+            1.822233465159887,
+            1.7700153125021432
+          ],
+          "detumble_time_s_per_seed": [
+            7310.0,
+            10120.0,
+            9830.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.6361687832759724,
+          "mean_orbits_detumbled_only": 1.6361687832759724,
+          "min_orbits": 1.316257572165887,
+          "max_orbits": 1.822233465159887
+        },
+        "m_max=0.05|rate=20": {
+          "detumble_time_orbits_per_seed": [
+            1.8528441063730472,
+            2.8143783656570194,
+            2.84859025877761
+          ],
+          "detumble_time_s_per_seed": [
+            10290.0,
+            15630.0,
+            15820.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 2.505270910269225,
+          "mean_orbits_detumbled_only": 2.505270910269225,
+          "min_orbits": 1.8528441063730472,
+          "max_orbits": 2.84859025877761
+        },
+        "m_max=0.05|rate=30": {
+          "detumble_time_orbits_per_seed": [
+            2.4488512970528125,
+            4.076617159211447,
+            3.9613770981736676
+          ],
+          "detumble_time_s_per_seed": [
+            13600.0,
+            22640.0,
+            22000.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 3.4956151848126424,
+          "mean_orbits_detumbled_only": 3.4956151848126424,
+          "min_orbits": 2.4488512970528125,
+          "max_orbits": 4.076617159211447
+        },
+        "m_max=0.1|rate=2": {
+          "detumble_time_orbits_per_seed": [
+            0.34932143502076884,
+            0.7850729158198723,
+            0.8336898165701855
+          ],
+          "detumble_time_s_per_seed": [
+            1940.0,
+            4360.0,
+            4630.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 0.6560280558036089,
+          "mean_orbits_detumbled_only": 0.6560280558036089,
+          "min_orbits": 0.34932143502076884,
+          "max_orbits": 0.8336898165701855
+        },
+        "m_max=0.1|rate=5": {
+          "detumble_time_orbits_per_seed": [
+            0.8066804272644559,
+            1.328861953841894,
+            1.3198588240733173
+          ],
+          "detumble_time_s_per_seed": [
+            4480.0,
+            7380.0,
+            7330.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.1518004017265557,
+          "mean_orbits_detumbled_only": 1.1518004017265557,
+          "min_orbits": 0.8066804272644559,
+          "max_orbits": 1.328861953841894
+        },
+        "m_max=0.1|rate=10": {
+          "detumble_time_orbits_per_seed": [
+            1.0785749462754668,
+            1.5989558468991893,
+            1.7141959079369689
+          ],
+          "detumble_time_s_per_seed": [
+            5990.0,
+            8880.0,
+            9520.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.4639089003705417,
+          "mean_orbits_detumbled_only": 1.4639089003705417,
+          "min_orbits": 1.0785749462754668,
+          "max_orbits": 1.7141959079369689
+        },
+        "m_max=0.1|rate=20": {
+          "detumble_time_orbits_per_seed": [
+            1.5413358163802997,
+            2.068919220818884,
+            2.2111686711623926
+          ],
+          "detumble_time_s_per_seed": [
+            8560.0,
+            11490.0,
+            12280.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.940474569453859,
+          "mean_orbits_detumbled_only": 1.940474569453859,
+          "min_orbits": 1.5413358163802997,
+          "max_orbits": 2.2111686711623926
+        },
+        "m_max=0.1|rate=30": {
+          "detumble_time_orbits_per_seed": [
+            2.054514213189161,
+            2.7981727320735814,
+            2.841387754962749
+          ],
+          "detumble_time_s_per_seed": [
+            11410.0,
+            15540.0,
+            15780.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 2.5646915667418306,
+          "mean_orbits_detumbled_only": 2.5646915667418306,
+          "min_orbits": 2.054514213189161,
+          "max_orbits": 2.841387754962749
+        },
+        "m_max=0.2|rate=2": {
+          "detumble_time_orbits_per_seed": [
+            0.34932143502076884,
+            0.7850729158198723,
+            0.8336898165701855
+          ],
+          "detumble_time_s_per_seed": [
+            1940.0,
+            4360.0,
+            4630.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 0.6560280558036089,
+          "mean_orbits_detumbled_only": 0.6560280558036089,
+          "min_orbits": 0.34932143502076884,
+          "max_orbits": 0.8336898165701855
+        },
+        "m_max=0.2|rate=5": {
+          "detumble_time_orbits_per_seed": [
+            0.8066804272644559,
+            1.328861953841894,
+            1.3198588240733173
+          ],
+          "detumble_time_s_per_seed": [
+            4480.0,
+            7380.0,
+            7330.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.1518004017265557,
+          "mean_orbits_detumbled_only": 1.1518004017265557,
+          "min_orbits": 0.8066804272644559,
+          "max_orbits": 1.328861953841894
+        },
+        "m_max=0.2|rate=10": {
+          "detumble_time_orbits_per_seed": [
+            1.1361949767943564,
+            1.620563358343773,
+            1.679984014816378
+          ],
+          "detumble_time_s_per_seed": [
+            6310.0,
+            9000.0,
+            9330.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.4789141166515023,
+          "mean_orbits_detumbled_only": 1.4789141166515023,
+          "min_orbits": 1.1361949767943564,
+          "max_orbits": 1.679984014816378
+        },
+        "m_max=0.2|rate=20": {
+          "detumble_time_orbits_per_seed": [
+            1.4999214194448478,
+            2.0112991902999937,
+            2.212969297116108
+          ],
+          "detumble_time_s_per_seed": [
+            8330.0,
+            11170.0,
+            12290.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.9080633022869833,
+          "mean_orbits_detumbled_only": 1.9080633022869833,
+          "min_orbits": 1.4999214194448478,
+          "max_orbits": 2.212969297116108
+        },
+        "m_max=0.2|rate=30": {
+          "detumble_time_orbits_per_seed": [
+            1.8366384727896095,
+            2.3804275108116313,
+            2.34261436578361
+          ],
+          "detumble_time_s_per_seed": [
+            10200.0,
+            13220.0,
+            13010.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 2.186560116461617,
+          "mean_orbits_detumbled_only": 2.186560116461617,
+          "min_orbits": 1.8366384727896095,
+          "max_orbits": 2.3804275108116313
+        },
+        "m_max=0.4|rate=2": {
+          "detumble_time_orbits_per_seed": [
+            0.34932143502076884,
+            0.7850729158198723,
+            0.8336898165701855
+          ],
+          "detumble_time_s_per_seed": [
+            1940.0,
+            4360.0,
+            4630.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 0.6560280558036089,
+          "mean_orbits_detumbled_only": 0.6560280558036089,
+          "min_orbits": 0.34932143502076884,
+          "max_orbits": 0.8336898165701855
+        },
+        "m_max=0.4|rate=5": {
+          "detumble_time_orbits_per_seed": [
+            0.8066804272644559,
+            1.328861953841894,
+            1.3198588240733173
+          ],
+          "detumble_time_s_per_seed": [
+            4480.0,
+            7380.0,
+            7330.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.1518004017265557,
+          "mean_orbits_detumbled_only": 1.1518004017265557,
+          "min_orbits": 0.8066804272644559,
+          "max_orbits": 1.328861953841894
+        },
+        "m_max=0.4|rate=10": {
+          "detumble_time_orbits_per_seed": [
+            1.1361949767943564,
+            1.620563358343773,
+            1.679984014816378
+          ],
+          "detumble_time_s_per_seed": [
+            6310.0,
+            9000.0,
+            9330.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.4789141166515023,
+          "mean_orbits_detumbled_only": 1.4789141166515023,
+          "min_orbits": 1.1361949767943564,
+          "max_orbits": 1.679984014816378
+        },
+        "m_max=0.4|rate=20": {
+          "detumble_time_orbits_per_seed": [
+            1.4963201675374171,
+            2.013099816253709,
+            2.130140503245204
+          ],
+          "detumble_time_s_per_seed": [
+            8310.0,
+            11180.0,
+            11830.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.879853495678777,
+          "mean_orbits_detumbled_only": 1.879853495678777,
+          "min_orbits": 1.4963201675374171,
+          "max_orbits": 2.130140503245204
+        },
+        "m_max=0.4|rate=30": {
+          "detumble_time_orbits_per_seed": [
+            1.80962908348388,
+            2.4002343963024995,
+            2.3120037245704497
+          ],
+          "detumble_time_s_per_seed": [
+            10050.0,
+            13330.0,
+            12840.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 2.17395573478561,
+          "mean_orbits_detumbled_only": 2.17395573478561,
+          "min_orbits": 1.80962908348388,
+          "max_orbits": 2.4002343963024995
+        }
+      }
+    },
+    "gain_grid": {
+      "rate_deg_s": 10.0,
+      "m_max_A_m2": 0.2,
+      "scales": [
+        0.25,
+        0.5,
+        1.0,
+        2.0,
+        4.0
+      ],
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "bdot_k_nominal_N_m_s": 2.6906817305101475e-05,
+      "bdot_k_per_scale_N_m_s": {
+        "0.25": 6.726704326275369e-06,
+        "0.5": 1.3453408652550738e-05,
+        "1": 2.6906817305101475e-05,
+        "2": 5.381363461020295e-05,
+        "4": 0.0001076272692204059
+      },
+      "cells": {
+        "scale=0.25": {
+          "detumble_time_orbits_per_seed": [
+            5.389273479469903,
+            null,
+            null,
+            3.734498228005539,
+            null
+          ],
+          "detumble_time_s_per_seed": [
+            29930.0,
+            null,
+            null,
+            20740.0,
+            null
+          ],
+          "n_not_detumbled": 3,
+          "mean_orbits": null,
+          "mean_orbits_detumbled_only": 4.561885853737721,
+          "min_orbits": 3.734498228005539,
+          "max_orbits": 5.389273479469903,
+          "flag": "not detumbled within 6 orbits"
+        },
+        "scale=0.5": {
+          "detumble_time_orbits_per_seed": [
+            2.3246081062464565,
+            3.316753006743589,
+            3.305949251021297,
+            1.8402397246970401,
+            3.797520136385575
+          ],
+          "detumble_time_s_per_seed": [
+            12910.0,
+            18420.0,
+            18360.0,
+            10220.0,
+            21090.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 2.917014045018792,
+          "mean_orbits_detumbled_only": 2.917014045018792,
+          "min_orbits": 1.8402397246970401,
+          "max_orbits": 3.797520136385575
+        },
+        "scale=1": {
+          "detumble_time_orbits_per_seed": [
+            1.1361949767943564,
+            1.620563358343773,
+            1.679984014816378,
+            0.878705465413068,
+            1.507123923259709
+          ],
+          "detumble_time_s_per_seed": [
+            6310.0,
+            9000.0,
+            9330.0,
+            4880.0,
+            8370.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 1.3645143477254567,
+          "mean_orbits_detumbled_only": 1.3645143477254567,
+          "min_orbits": 0.878705465413068,
+          "max_orbits": 1.679984014816378
+        },
+        "scale=2": {
+          "detumble_time_orbits_per_seed": [
+            0.5437890380220216,
+            0.9165186104410894,
+            0.8823067173204987,
+            0.5131783968088615,
+            0.8066804272644559
+          ],
+          "detumble_time_s_per_seed": [
+            3020.0,
+            5090.0,
+            4900.0,
+            2850.0,
+            4480.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 0.7324946379713854,
+          "mean_orbits_detumbled_only": 0.7324946379713854,
+          "min_orbits": 0.5131783968088615,
+          "max_orbits": 0.9165186104410894
+        },
+        "scale=4": {
+          "detumble_time_orbits_per_seed": [
+            0.40874209149337387,
+            0.49157088536427784,
+            0.49157088536427784,
+            0.3007045342704557,
+            0.43755210675281875
+          ],
+          "detumble_time_s_per_seed": [
+            2270.0,
+            2730.0,
+            2730.0,
+            1670.0,
+            2430.0
+          ],
+          "n_not_detumbled": 0,
+          "mean_orbits": 0.42602810064904073,
+          "mean_orbits_detumbled_only": 0.42602810064904073,
+          "min_orbits": 0.3007045342704557,
+          "max_orbits": 0.49157088536427784
+        }
+      }
+    },
+    "n_runs": 85,
+    "n_cells": 25,
+    "n_cells_with_failures": 1,
+    "n_runs_not_detumbled": 3
+  },
+  "pointing_15orbits": {
+    "n_orbits": 15,
+    "initial_offset_deg": [
+      20.0,
+      -15.0,
+      30.0
+    ],
+    "initial_w_rel_deg_s": [
+      0.1,
+      -0.1,
+      0.2
+    ],
+    "log_resolution_s": 10.0,
+    "gains": {
+      "wn_rad_s": 0.1,
+      "zeta": 0.7,
+      "rate_limit_deg_s": 0.5
+    },
+    "dump_k_per_s": 0.001,
+    "dump_on_fraction": 0.3,
+    "dump_off_fraction": 0.05,
+    "cases": {
+      "dumping_on": {
+        "max_nadir_error_deg_after_first_orbit": 0.07845952327144798,
+        "rms_nadir_error_deg_after_first_orbit": 0.053232454281827726,
+        "max_nadir_error_deg_overall": 39.05124837953327,
+        "final_nadir_error_deg": 0.07034111758044823,
+        "per_orbit_max_nadir_error_deg": [
+          39.05124837953327,
+          0.07084403014084027,
+          0.0696478515715108,
+          0.06645416588559036,
+          0.06649352489614109,
+          0.06755203707974002,
+          0.06929756816587088,
+          0.07087983235333767,
+          0.07305275204585052,
+          0.07597382271391233,
+          0.0780702925023815,
+          0.07814486138521683,
+          0.07845952327144798,
+          0.07624501409603994,
+          0.07367471835111804
+        ],
+        "max_wheel_speed_fraction_per_axis": {
+          "x": 0.16025402987803558,
+          "y": 0.30002000924662436,
+          "z": 0.14836957498691072
+        },
+        "max_wheel_speed_fraction": 0.30002000924662436,
+        "max_wheel_speed_rpm": 2400.1600739729947,
+        "first_saturation_time_s": null,
+        "first_saturation_time_orbits": null,
+        "fraction_of_time_dumping": 0.9222182211019085,
+        "max_abs_dipole_component_A_m2": 0.010339811556419148
+      },
+      "dumping_off": {
+        "max_nadir_error_deg_after_first_orbit": 179.91524763462812,
+        "rms_nadir_error_deg_after_first_orbit": 74.41114555253968,
+        "max_nadir_error_deg_overall": 179.91524763462812,
+        "final_nadir_error_deg": 111.85273983555464,
+        "per_orbit_max_nadir_error_deg": [
+          39.05124837953327,
+          0.07084403014084027,
+          0.06886760971183538,
+          85.78382820815214,
+          176.4153503014022,
+          179.80279673876765,
+          179.64148754263323,
+          179.91524763462812,
+          176.12060758665706,
+          179.83839258132738,
+          177.45258210124706,
+          157.1550366229776,
+          127.05886838212325,
+          116.98994974012197,
+          112.113911560545
+        ],
+        "max_wheel_speed_fraction_per_axis": {
+          "x": 0.6670980232760995,
+          "y": 1.0000044003726722,
+          "z": 0.6776985057263898
+        },
+        "max_wheel_speed_fraction": 1.0000044003726722,
+        "max_wheel_speed_rpm": 8000.035202981378,
+        "first_saturation_time_s": 20710.0,
+        "first_saturation_time_orbits": 3.7290963501443932,
+        "fraction_of_time_dumping": 0.0,
+        "max_abs_dipole_component_A_m2": 0.0
+      }
+    }
+  },
+  "auto_detumble_to_nadir": {
+    "initial_rate_deg_s": 10.0,
+    "seed": 0,
+    "n_orbits": 4,
+    "log_resolution_s": 10.0,
+    "switch_time_s": 6367.0,
+    "switch_time_orbits": 1.1464585447305338,
+    "detumble_time_s": 6310.0,
+    "max_nadir_error_deg_from_switch_plus_1_orbit": 0.0663720117453321,
+    "rms_nadir_error_deg_from_switch_plus_1_orbit": 0.053684542272357236,
+    "final_nadir_error_deg": 0.06538172446938786,
+    "max_wheel_speed_fraction_whole_run": 0.2998482717700081,
+    "max_wheel_speed_fraction_pointing_phase": 0.2998482717700081,
+    "max_wheel_speed_fraction_per_axis_pointing_phase": {
+      "x": 0.16589377566544902,
+      "y": 0.2998482717700081,
+      "z": 0.16202753372861387
+    },
+    "max_wheel_speed_rpm": 2398.786174160065,
+    "fraction_of_pointing_time_dumping": 0.677602523659306,
+    "max_abs_dipole_component_A_m2": 0.14386319708943573,
+    "note_pointing_error_window": "samples with t >= switch time + 1 orbit"
+  },
+  "checks": {
+    "detumble_10deg_all_seeds_within_3_orbits": true,
+    "wheel_speed_never_above_8000_rpm_x1.00001_pointing_cases": true,
+    "wheel_speed_never_above_8000_rpm_auto": true,
+    "nadir_error_below_1deg_after_first_orbit_dumping_on": true
+  },
+  "runtime_s": {
+    "total": 562.1399480999971,
+    "sum_of_individual_runs": 10698.02170550004,
+    "n_runs": 93,
+    "n_processes": 20
+  }
+}

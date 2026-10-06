@@ -44,6 +44,15 @@ __all__ = [
 ]
 
 
+def _cross(a, b) -> np.ndarray:
+    """Cross product; explicit for single 3-vectors (``np.cross`` costs ~40 us per call)."""
+    if a.ndim == 1 and b.ndim == 1:
+        return np.array([a[1] * b[2] - a[2] * b[1],
+                         a[2] * b[0] - a[0] * b[2],
+                         a[0] * b[1] - a[1] * b[0]])
+    return np.cross(a, b)
+
+
 def _as_torque_fn(torque):
     """Return ``f(t, q, w, h_w) -> (3,)`` from a callable, a 3-vector or ``None`` (zeros)."""
     if torque is None:
@@ -69,7 +78,7 @@ def derivative(t, y, inertia, wheel_torque=None, ext_torque=None) -> np.ndarray:
     inertia = np.asarray(inertia, dtype=float)
     u = _as_torque_fn(wheel_torque)(t, q, w, h)
     tau = _as_torque_fn(ext_torque)(t, q, w, h)
-    w_dot = np.linalg.solve(inertia, -np.cross(w, inertia @ w + h) - u + tau)
+    w_dot = np.linalg.solve(inertia, -_cross(w, inertia @ w + h) - u + tau)
     out = np.empty(10)
     out[0:4] = quat.derivative(q, w)
     out[4:7] = w_dot
