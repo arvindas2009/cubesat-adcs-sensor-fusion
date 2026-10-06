@@ -7,8 +7,8 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 | 1 Foundations | M0 | **done** |
 | 2 A data + dead reckoning | M1, M2 | **done** |
 | 3 A 15-state EKF | M3 | **done** |
-| 4 A tuning + writeup | M4 | next |
-| 5 B physics | M5, M6 | not started |
+| 4 A tuning + writeup | M4 | **done** |
+| 5 B physics | M5, M6 | next |
 | 6 B control | M7 | not started |
 | 7 B estimation | M8 | not started |
 | 8 B closed loop + MC + doc | M9 | not started |
@@ -117,4 +117,34 @@ Runtime 9–32 s per run (≈ 15k IMU steps/s). Bias estimation (inc 3) cuts hor
 - `run_filter` applies the GPS σ floors; `DroneEKF.update_*` take σ as given.
 - All increments were implemented together behind `EkfConfig.increment` and run on all 3 flights after the review, not strictly one after another.
 
-**Next: Group 4** (M4: time-boxed covariance sweep, RMSE + NIS with chi² bounds, `run_flight.py` CLI, writeup). Recommended main-session model: **Sonnet** (`/model sonnet`).
+## Group 4 — Project A tuning, validation, writeup (M4) — done · **Project A complete**
+
+**Delivered**
+- `docs/specs/tuning_writeup.md` (spec for everything below).
+- `sensor_fusion/metrics.py` (extracted behaviour-identically from `ekf_study.py`: `compare_to_ekf2`, `nis_summary` with χ² bounds, `bias_summary`, `ekf2_bias_reference`; new `consistency_score` = RMS of ln(mean NIS/dof)), `sensor_fusion/report/ekf_figures.py` (figure functions with `prefix`/`out_dir`), `sensor_fusion/run_flight.py` CLI (`python -m sensor_fusion.run_flight <role|id|all> [--increment 3] [--set key=value] [--prefix final]` → `report/final_metrics_<id>.json` + `figures/final_<id>_{pos,att,bias,nis}.png`). Regression: new metrics reproduce the stored G3 hover numbers bit-identically (104 numbers). `ekf_study.py` now uses `G3_DEFAULTS` (the pre-tuning values) so the increment study stays reproducible.
+- `sensor_fusion/report/tuning_sweep.py` → `tuning_sweep.json/.md`, 10 figures: 120 runs (40 configs × 3 logs), 500 s wall time on 20 workers; baseline pinned to `G3_DEFAULTS` after review (re-run reproduces the committed tables).
+- `sensor_fusion/report/height_diagnostics.py` → `height_diagnostics.json` + figures (end-of-window down position ours/EKF2/GPS/baro/integrated GPS velocity, reported GPS accuracy, NIS ratios).
+- `sensor_fusion/report/writeup.md` (draft from the JSON files; ★ reviewed).
+- `assumptions.md` A-13 (tuning procedure and decision); A-03/A-04/A-09/A-11 corrected.
+- Tests: **722 passing** (~90 s). New: 58 (`test_metrics.py`, `test_run_flight.py`; independent oracles: hand-computed values, scipy `Rotation`, `scipy.stats.chi2`).
+
+**Tuning outcome (small, and that is the finding).** Sweep winner `joint` (total score 1.816 → 1.717) was **not** adopted: the ★ review showed the gain of lower `gyro_bias_rw` comes from the mag NIS (too-large R offset by too-small Q) and makes our gyro bias overconfident vs EKF2's `estimator_sensor_bias`. **Only `gps_pos_floor_v` 0.5 → 0.125 m was adopted** (RTK log reports epv 0.010–0.026 m; total score 1.816 → 1.770). All other `EkfConfig` defaults are unchanged. The choice deviates from the pre-set rule's winner after seeing results (recorded as post hoc in A-13).
+
+**Final numbers** (increment 3, RMS difference to EKF2 after 5 s — a reference, not truth; `final_metrics_<id>.json`)
+
+| Log | posH [m] | posD [m] | vel [m/s] | tilt [°] | yaw [°] | NIS ratio gps_pos / gps_vel / baro / mag | score |
+|---|---|---|---|---|---|---|---|
+| hover | 0.050 | 1.040 | 0.105 | 1.05 | 5.78 | 0.27 / 0.075 / 1.18 / 0.089 | 1.892 |
+| aggressive | 0.055 | 0.753 | 0.090 | 0.37 | 1.38 | 0.79 / 0.30 / 39.4 / 0.053 | 2.435 |
+| other | 0.255 | 0.929 | 0.216 | 0.56 | 1.80 | 0.42 / 0.27 / 1.10 / 0.31 | 0.981 |
+
+**Findings to carry forward**
+- NIS: only baro on hover/other is near 1. Mag, GPS velocity and GPS position ratios are 0.05–0.42, i.e. the noise models are conservative; aggressive-log baro ratio ≈ 39 (not sensitive to knobs except `baro_sigma` and the vertical GPS floor) is consistent with GPS vertical position drifting ≈ 7.4 m against its own integrated velocity and the baro (`height_diagnostics.json`); the filter's height follows GPS. A baro-offset state is untested future work. Mean-NIS χ² bounds are very narrow with thousands of correlated samples; ratios and the effective-sample-size reading are used instead.
+- `fraction_inside_95` is insensitive to over-conservative R (stays ≈ 0.9 even for ratio 0.05).
+- Aggressive-log accel bias disagrees with EKF2 (y axis opposite sign, ≈ 24σ; gyro biases agree) — reported, not explained. The log ends in an impact; the landing-height closure assumes landing height = take-off height (ASSUMPTION).
+- GPS-delay sensitivity (A-09) was **not** run in Group 4.
+- Citations in A-07…A-12 marked "unverified" still need checking before any external use.
+- Reviewer-only numbers in A-13 (bias-normalised differences, EKF2 bias wander rates) come from scratch scripts that are not in the repo.
+- `tuning_sweep.py` sets `OPENBLAS_NUM_THREADS=1` itself (20 workers otherwise hit OpenBLAS allocation failures).
+
+**Next: Group 5** (M5, M6: Project B physics — orbit, environment, dynamics, disturbances). Recommended main-session model: **Sonnet** (`/model sonnet`).

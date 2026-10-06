@@ -76,7 +76,7 @@ class EkfConfig:
     sigma_bg0: float = 0.1; sigma_ba0: float = 0.2
     # measurements (A-04)
     gps_delay_s: float = 0.11
-    gps_pos_floor_h: float = 0.5; gps_pos_floor_v: float = 0.5; gps_vel_floor: float = 0.3
+    gps_pos_floor_h: float = 0.5; gps_pos_floor_v: float = 0.125; gps_vel_floor: float = 0.3   # floor_v tuned in Group 4 (A-13), was 0.5
     baro_sigma: float = 1.5
     mag_heading_sigma: float = 0.07   # rad (4 deg)
     gate_prob: float | None = None    # chi2 gating probability per update; None = no gating

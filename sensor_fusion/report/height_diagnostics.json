@@ -1,0 +1,379 @@
+{
+  "reference": "EKF2 reference, not truth",
+  "assumption_landing_height": "ASSUMPTION (not a result): landing pad height = take-off height. Nothing in the logs verifies it; all 'height drift' statements that rely on it inherit this assumption.",
+  "total_runtime_s": 134.52077719999943,
+  "logs": {
+    "f4e81624-7ccc-4859-bb45-d02fa0246b77": {
+      "log_id": "f4e81624-7ccc-4859-bb45-d02fa0246b77",
+      "role": "hover",
+      "reference": "EKF2 reference, not truth",
+      "window_duration_s": 280.022469,
+      "assumption_landing_height": "ASSUMPTION (not a result): landing pad height = take-off height. Nothing in the logs verifies it; all 'height drift' statements that rely on it inherit this assumption.",
+      "sign_convention": "down positive; positive end value = below the take-off height",
+      "units": {
+        "position": "m",
+        "time": "s",
+        "eph_epv_evh": "m",
+        "s_acc": "m/s"
+      },
+      "config": "EkfConfig defaults (final tuned values), increment 3",
+      "samples": {
+        "end_of_window": {
+          "t_requested_s": 280.022469,
+          "t_used_s": {
+            "ours": 280.022469,
+            "ekf2": 279.973353,
+            "gps": 279.853281,
+            "baro": 279.93487
+          },
+          "down_position_m": {
+            "ours": -1.380164972602562,
+            "ekf2": -2.2420273437501237,
+            "gps": -2.4449999754783516,
+            "baro": -0.13916015625,
+            "gps_vel_integrated": -0.6908561233951668
+          },
+          "baro_minus_gps_m": 2.3058398192283516,
+          "gps_pos_minus_gps_vel_integrated_m": -1.754143852083185,
+          "ours_minus_ekf2_m": 0.8618623711475617
+        },
+        "t_40s": {
+          "t_requested_s": 40.0,
+          "t_used_s": {
+            "ours": 40.000730999999995,
+            "ekf2": 39.978715,
+            "gps": 40.059227,
+            "baro": 39.914739
+          },
+          "down_position_m": {
+            "ours": -6.220166575399971,
+            "ekf2": -6.984214843750124,
+            "gps": -7.044999749547344,
+            "baro": -5.11474609375,
+            "gps_vel_integrated": -5.1150271500430025
+          },
+          "baro_minus_gps_m": 1.930253655797344,
+          "gps_pos_minus_gps_vel_integrated_m": -1.9299725995043415,
+          "ours_minus_ekf2_m": 0.7640482683501526
+        },
+        "t_100s": {
+          "t_requested_s": 100.0,
+          "t_used_s": {
+            "ours": 100.000765,
+            "ekf2": 99.978667,
+            "gps": 100.057206,
+            "baro": 99.91927199999999
+          },
+          "down_position_m": {
+            "ours": -10.527343205695008,
+            "ekf2": -11.424156250000124,
+            "gps": -11.494996170634233,
+            "baro": -9.03857421875,
+            "gps_vel_integrated": -9.13495224322095
+          },
+          "baro_minus_gps_m": 2.4564219518842325,
+          "gps_pos_minus_gps_vel_integrated_m": -2.360043927413283,
+          "ours_minus_ekf2_m": 0.8968130443051159
+        }
+      },
+      "gps_first_to_last_horizontal_distance_m": 0.5644025558517631,
+      "gps_first_to_last_ned_delta_m": [
+        -0.23285715186207878,
+        0.5141281862324643,
+        -2.4449999754783516
+      ],
+      "receiver_median": {
+        "eph_m": 0.6740517020225525,
+        "epv_m": 1.258952260017395,
+        "s_acc_m_s": 0.05108642578125,
+        "n_gps": 1381
+      },
+      "ekf2_reported_median": {
+        "available": true,
+        "n_samples": 2799,
+        "unit": "m",
+        "median_eph": 0.276500940322876,
+        "median_epv": 0.2585306763648987,
+        "median_evh": 0.13182440400123596
+      },
+      "ekf2_vertical_offset_m": 11.651207031250124,
+      "nis_ratio_after_5s": {
+        "gps_pos": {
+          "mean_nis_after_5s": 0.7982925385693367,
+          "dof": 3,
+          "ratio": 0.26609751285644556,
+          "n": 1356
+        },
+        "gps_vel": {
+          "mean_nis_after_5s": 0.22497968733634374,
+          "dof": 3,
+          "ratio": 0.07499322911211458,
+          "n": 1356
+        },
+        "baro": {
+          "mean_nis_after_5s": 1.1766679953846249,
+          "dof": 1,
+          "ratio": 1.1766679953846249,
+          "n": 1374
+        },
+        "mag_heading": {
+          "mean_nis_after_5s": 0.0892909519680954,
+          "dof": 1,
+          "ratio": 0.0892909519680954,
+          "n": 549
+        }
+      },
+      "nis_own_run_matches_run_one": true,
+      "figure": "sensor_fusion/report/figures/height_diagnostics_f4e81624-7ccc-4859-bb45-d02fa0246b77.png",
+      "analysis_runtime_s": 36.52927009999985
+    },
+    "7cd0a812-d6d6-4c67-9da8-1f3a9cc460b0": {
+      "log_id": "7cd0a812-d6d6-4c67-9da8-1f3a9cc460b0",
+      "role": "aggressive",
+      "reference": "EKF2 reference, not truth",
+      "window_duration_s": 169.341076,
+      "assumption_landing_height": "ASSUMPTION (not a result): landing pad height = take-off height. Nothing in the logs verifies it; all 'height drift' statements that rely on it inherit this assumption.",
+      "sign_convention": "down positive; positive end value = below the take-off height",
+      "units": {
+        "position": "m",
+        "time": "s",
+        "eph_epv_evh": "m",
+        "s_acc": "m/s"
+      },
+      "config": "EkfConfig defaults (final tuned values), increment 3",
+      "samples": {
+        "end_of_window": {
+          "t_requested_s": 169.341076,
+          "t_used_s": {
+            "ours": 169.341076,
+            "ekf2": 169.30991899999998,
+            "gps": 169.278641,
+            "baro": 169.344397
+          },
+          "down_position_m": {
+            "ours": 7.474946759648421,
+            "ekf2": 8.234562438964844,
+            "gps": 8.882004658034463,
+            "baro": -0.02378082275390625,
+            "gps_vel_integrated": 1.5292645326286114
+          },
+          "baro_minus_gps_m": -8.905785480788369,
+          "gps_pos_minus_gps_vel_integrated_m": 7.352740125405852,
+          "ours_minus_ekf2_m": -0.7596156793164228
+        },
+        "t_40s": {
+          "t_requested_s": 40.0,
+          "t_used_s": {
+            "ours": 40.002247,
+            "ekf2": 40.011775,
+            "gps": 39.978638,
+            "baro": 39.963012
+          },
+          "down_position_m": {
+            "ours": 8.453625317800388,
+            "ekf2": 8.925526184082031,
+            "gps": 9.158001947191643,
+            "baro": -1.8469810485839844,
+            "gps_vel_integrated": -1.2181514713884012
+          },
+          "baro_minus_gps_m": -11.004982995775627,
+          "gps_pos_minus_gps_vel_integrated_m": 10.376153418580044,
+          "ours_minus_ekf2_m": -0.4719008662816435
+        },
+        "t_100s": {
+          "t_requested_s": 100.0,
+          "t_used_s": {
+            "ours": 99.999828,
+            "ekf2": 100.009289,
+            "gps": 99.980644,
+            "baro": 99.959667
+          },
+          "down_position_m": {
+            "ours": 10.695656837327723,
+            "ekf2": 11.264530700683594,
+            "gps": 11.591001147812019,
+            "baro": -1.7201499938964844,
+            "gps_vel_integrated": 0.06406970983162345
+          },
+          "baro_minus_gps_m": -13.311151141708503,
+          "gps_pos_minus_gps_vel_integrated_m": 11.526931437980396,
+          "ours_minus_ekf2_m": -0.5688738633558703
+        }
+      },
+      "gps_first_to_last_horizontal_distance_m": 7.709788981998562,
+      "gps_first_to_last_ned_delta_m": [
+        0.5423993566235592,
+        -7.690685865700196,
+        8.882004658034463
+      ],
+      "receiver_median": {
+        "eph_m": 0.2930000126361847,
+        "epv_m": 0.5590000152587891,
+        "s_acc_m_s": 0.17800000309944153,
+        "n_gps": 1494
+      },
+      "ekf2_reported_median": {
+        "available": true,
+        "n_samples": 1694,
+        "unit": "m",
+        "median_eph": 0.17756769061088562,
+        "median_epv": 0.15794847160577774,
+        "median_evh": 0.10712603852152824
+      },
+      "ekf2_vertical_offset_m": 1.1065210876464846,
+      "nis_ratio_after_5s": {
+        "gps_pos": {
+          "mean_nis_after_5s": 2.3693756854731376,
+          "dof": 3,
+          "ratio": 0.7897918951577125,
+          "n": 1449
+        },
+        "gps_vel": {
+          "mean_nis_after_5s": 0.8868902987083208,
+          "dof": 3,
+          "ratio": 0.29563009956944025,
+          "n": 1449
+        },
+        "baro": {
+          "mean_nis_after_5s": 39.42539843418673,
+          "dof": 1,
+          "ratio": 39.42539843418673,
+          "n": 821
+        },
+        "mag_heading": {
+          "mean_nis_after_5s": 0.0525424821856534,
+          "dof": 1,
+          "ratio": 0.0525424821856534,
+          "n": 327
+        }
+      },
+      "nis_own_run_matches_run_one": true,
+      "figure": "sensor_fusion/report/figures/height_diagnostics_7cd0a812-d6d6-4c67-9da8-1f3a9cc460b0.png",
+      "analysis_runtime_s": 23.086591100000078
+    },
+    "78808b7c-d9e9-4350-b311-3bb510f29a7b": {
+      "log_id": "78808b7c-d9e9-4350-b311-3bb510f29a7b",
+      "role": "other",
+      "reference": "EKF2 reference, not truth",
+      "window_duration_s": 674.486496,
+      "assumption_landing_height": "ASSUMPTION (not a result): landing pad height = take-off height. Nothing in the logs verifies it; all 'height drift' statements that rely on it inherit this assumption.",
+      "sign_convention": "down positive; positive end value = below the take-off height",
+      "units": {
+        "position": "m",
+        "time": "s",
+        "eph_epv_evh": "m",
+        "s_acc": "m/s"
+      },
+      "config": "EkfConfig defaults (final tuned values), increment 3",
+      "samples": {
+        "end_of_window": {
+          "t_requested_s": 674.486496,
+          "t_used_s": {
+            "ours": 674.486496,
+            "ekf2": 674.4325329999999,
+            "gps": 673.896444,
+            "baro": 674.489098
+          },
+          "down_position_m": {
+            "ours": -0.2548429276029572,
+            "ekf2": 2.154600419998168,
+            "gps": -0.24399959452865752,
+            "baro": 3.0751312255859347,
+            "gps_vel_integrated": -0.37802255940591767
+          },
+          "baro_minus_gps_m": 3.319130820114592,
+          "gps_pos_minus_gps_vel_integrated_m": 0.13402296487726015,
+          "ours_minus_ekf2_m": -2.409443347601125
+        },
+        "t_40s": {
+          "t_requested_s": 40.0,
+          "t_used_s": {
+            "ours": 39.998481,
+            "ekf2": 40.030524,
+            "gps": 39.938248,
+            "baro": 39.916948
+          },
+          "down_position_m": {
+            "ours": -9.509400314773025,
+            "ekf2": -9.690684280395509,
+            "gps": -9.63979278550621,
+            "baro": -10.11532897949219,
+            "gps_vel_integrated": -10.11082630645815
+          },
+          "baro_minus_gps_m": -0.475536193985981,
+          "gps_pos_minus_gps_vel_integrated_m": 0.4710335209519414,
+          "ours_minus_ekf2_m": 0.18128396562248383
+        },
+        "t_100s": {
+          "t_requested_s": 100.0,
+          "t_used_s": {
+            "ours": 99.99924299999999,
+            "ekf2": 100.035702,
+            "gps": 99.839964,
+            "baro": 100.089289
+          },
+          "down_position_m": {
+            "ours": -22.387252318616277,
+            "ekf2": -23.084349594116212,
+            "gps": -22.381608447392175,
+            "baro": -22.565936279296878,
+            "gps_vel_integrated": -23.358643785412465
+          },
+          "baro_minus_gps_m": -0.18432783190470303,
+          "gps_pos_minus_gps_vel_integrated_m": 0.9770353380202899,
+          "ours_minus_ekf2_m": 0.6970972754999352
+        }
+      },
+      "gps_first_to_last_horizontal_distance_m": 2.273609262003923,
+      "gps_first_to_last_ned_delta_m": [
+        0.11126551642276976,
+        2.2708850832054885,
+        -0.24399959452865752
+      ],
+      "receiver_median": {
+        "eph_m": 0.014000000432133675,
+        "epv_m": 0.010000000707805157,
+        "s_acc_m_s": 0.04700000211596489,
+        "n_gps": 1348
+      },
+      "ekf2_reported_median": {
+        "available": true,
+        "n_samples": 6745,
+        "unit": "m",
+        "median_eph": 0.2188033014535904,
+        "median_epv": 0.20994065701961517,
+        "median_evh": 0.12636509537696838
+      },
+      "ekf2_vertical_offset_m": 0.9206170654296884,
+      "nis_ratio_after_5s": {
+        "gps_pos": {
+          "mean_nis_after_5s": 1.2610387243237027,
+          "dof": 3,
+          "ratio": 0.4203462414412342,
+          "n": 1338
+        },
+        "gps_vel": {
+          "mean_nis_after_5s": 0.8000117678157556,
+          "dof": 3,
+          "ratio": 0.2666705892719185,
+          "n": 1338
+        },
+        "baro": {
+          "mean_nis_after_5s": 1.0994051242923277,
+          "dof": 1,
+          "ratio": 1.0994051242923277,
+          "n": 3347
+        },
+        "mag_heading": {
+          "mean_nis_after_5s": 0.31362001486741287,
+          "dof": 1,
+          "ratio": 0.31362001486741287,
+          "n": 1338
+        }
+      },
+      "nis_own_run_matches_run_one": true,
+      "figure": "sensor_fusion/report/figures/height_diagnostics_78808b7c-d9e9-4350-b311-3bb510f29a7b.png",
+      "analysis_runtime_s": 74.904523899997
+    }
+  }
+}

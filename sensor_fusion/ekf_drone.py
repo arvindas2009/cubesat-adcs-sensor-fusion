@@ -156,7 +156,7 @@ class EkfConfig:
     # measurements (A-04, A-09, A-10, A-11)
     gps_delay_s: float = 0.11
     gps_pos_floor_h: float = 0.5      # m
-    gps_pos_floor_v: float = 0.5      # m
+    gps_pos_floor_v: float = 0.125    # m (tuned in Group 4, A-13; was 0.5)
     gps_vel_floor: float = 0.3        # m/s
     baro_sigma: float = 1.5           # m
     mag_heading_sigma: float = 0.07   # rad (4 deg)
