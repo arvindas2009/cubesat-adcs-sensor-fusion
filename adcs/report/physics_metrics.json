@@ -1,0 +1,229 @@
+{
+  "config": {
+    "epoch_utc": "2026-03-20T12:00:00",
+    "altitude_m": 400000.0,
+    "inclination_deg": 51.6,
+    "mass_kg": 4.0,
+    "inertia_diag_kg_m2": [
+      0.04186666666666667,
+      0.04186666666666667,
+      0.006666666666666668
+    ],
+    "residual_dipole_A_m2": [
+      0.001,
+      0.001,
+      0.001
+    ],
+    "cd": 2.2,
+    "com_offset_b_m": [
+      0.005,
+      0.005,
+      0.01
+    ]
+  },
+  "orbit_vs_sgp4": {
+    "tle_line1": "1 25544U 98067A   19343.69339541  .00001764  00000-0  38792-4 0  9991",
+    "tle_line2": "2 25544  51.6439 211.2001 0007417  17.6667  85.6398 15.50103472 20569",
+    "period_s": 5573.8214616424,
+    "sgp4_radius_m": 6787338.582623614,
+    "sgp4_speed_m_s": 7664.7111785155585,
+    "max_dr_first_orbit_m": 103.25759995819104,
+    "max_dr_one_day_m": 2342.5347608586985,
+    "final_dr_one_day_m": 976.51868423221,
+    "max_abs_radial_one_day_m": 385.8655416007863,
+    "max_abs_along_track_one_day_m": 2342.5031287051756,
+    "max_abs_cross_track_one_day_m": 121.22916799908558,
+    "max_abs_radius_difference_one_day_m": 386.0479556424543,
+    "note": "difference expected to be dominated by drag (B* = 3.88e-5), J3/J4 and osculating vs mean-element mismatch; own model is two-body + J2 only"
+  },
+  "eclipse_and_field": {
+    "n_orbits": 3,
+    "period_s": 5553.624271252228,
+    "eclipse_fraction_3_orbits": 0.3905218956208758,
+    "eclipse_fraction_1_day": 0.39393588705010996,
+    "B_min_uT": 18.979074508922054,
+    "B_mean_uT": 34.98304011320495,
+    "B_max_uT": 49.31398352398833,
+    "beta_deg_at_epoch": 0.051746347145350896,
+    "beta_deg_min_3_orbits": -0.7963241970231477,
+    "beta_deg_max_3_orbits": 0.051746347145350896,
+    "beta_deg_min_1_day": -4.3317509848776234,
+    "beta_deg_max_1_day": 0.051746347145350896,
+    "analytic_eclipse_fraction_beta0": 0.3900996182292887
+  },
+  "disturbance_magnitudes": {
+    "n_orbits": 3,
+    "attitudes": {
+      "nadir-aligned": {
+        "gravity_gradient": {
+          "rms_Nm": 2.47902570116655e-23,
+          "max_Nm": 8.084926348156339e-23
+        },
+        "residual_dipole": {
+          "rms_Nm": 5.1138395451136916e-08,
+          "max_Nm": 8.11806766794529e-08
+        },
+        "aero": {
+          "rms_Nm": 9.846210097929046e-08,
+          "max_Nm": 1.0754832956745018e-07
+        },
+        "largest_source_by_rms": "aero"
+      },
+      "+10 deg about x": {
+        "gravity_gradient": {
+          "rms_Nm": 2.3184032663620342e-08,
+          "max_Nm": 2.323306128499992e-08
+        },
+        "residual_dipole": {
+          "rms_Nm": 4.948154678358287e-08,
+          "max_Nm": 7.816123661097355e-08
+        },
+        "aero": {
+          "rms_Nm": 9.860631277548142e-08,
+          "max_Nm": 1.0817454733691793e-07
+        },
+        "largest_source_by_rms": "aero"
+      },
+      "+10 deg about y": {
+        "gravity_gradient": {
+          "rms_Nm": 2.3184032663620345e-08,
+          "max_Nm": 2.3233061284999938e-08
+        },
+        "residual_dipole": {
+          "rms_Nm": 5.298520139744267e-08,
+          "max_Nm": 8.350889746881883e-08
+        },
+        "aero": {
+          "rms_Nm": 9.360130838275549e-08,
+          "max_Nm": 1.0163425532011954e-07
+        },
+        "largest_source_by_rms": "aero"
+      },
+      "+10 deg about z": {
+        "gravity_gradient": {
+          "rms_Nm": 2.9545028010185815e-23,
+          "max_Nm": 9.120360400538608e-23
+        },
+        "residual_dipole": {
+          "rms_Nm": 5.087564641170318e-08,
+          "max_Nm": 8.158794704543006e-08
+        },
+        "aero": {
+          "rms_Nm": 1.1377967353619184e-07,
+          "max_Nm": 1.1819032015518081e-07
+        },
+        "largest_source_by_rms": "aero"
+      },
+      "+20 deg about x": {
+        "gravity_gradient": {
+          "rms_Nm": 4.357172882812701e-08,
+          "max_Nm": 4.366387249556237e-08
+        },
+        "residual_dipole": {
+          "rms_Nm": 4.795911844918885e-08,
+          "max_Nm": 7.493788439175183e-08
+        },
+        "aero": {
+          "rms_Nm": 9.866274547978118e-08,
+          "max_Nm": 1.0864539950416387e-07
+        },
+        "largest_source_by_rms": "aero"
+      },
+      "+20 deg about y": {
+        "gravity_gradient": {
+          "rms_Nm": 4.357172882812701e-08,
+          "max_Nm": 4.366387249556235e-08
+        },
+        "residual_dipole": {
+          "rms_Nm": 5.452626434703401e-08,
+          "max_Nm": 8.498743980303106e-08
+        },
+        "aero": {
+          "rms_Nm": 8.380092059968692e-08,
+          "max_Nm": 9.025544424014118e-08
+        },
+        "largest_source_by_rms": "aero"
+      },
+      "+20 deg about z": {
+        "gravity_gradient": {
+          "rms_Nm": 2.8360173908354954e-23,
+          "max_Nm": 9.494067649605309e-23
+        },
+        "residual_dipole": {
+          "rms_Nm": 5.066997208016088e-08,
+          "max_Nm": 8.183007837621702e-08
+        },
+        "aero": {
+          "rms_Nm": 1.295010987878987e-07,
+          "max_Nm": 1.361801820140099e-07
+        },
+        "largest_source_by_rms": "aero"
+      }
+    },
+    "largest_source_by_rms_per_attitude": {
+      "nadir-aligned": "aero",
+      "+10 deg about x": "aero",
+      "+10 deg about y": "aero",
+      "+10 deg about z": "aero",
+      "+20 deg about x": "aero",
+      "+20 deg about y": "aero",
+      "+20 deg about z": "aero"
+    },
+    "largest_source_statement": "gravity gradient is the largest orbit-RMS source in 0 of 7 attitudes | residual dipole is the largest orbit-RMS source in 0 of 7 attitudes | aerodynamic is the largest orbit-RMS source in 7 of 7 attitudes",
+    "per_attitude_ranking": [
+      "nadir-aligned: largest orbit-RMS = aerodynamic (9.846e-08 N m), then residual dipole (5.114e-08), gravity gradient (2.479e-23)",
+      "+10 deg about x: largest orbit-RMS = aerodynamic (9.861e-08 N m), then residual dipole (4.948e-08), gravity gradient (2.318e-08)",
+      "+10 deg about y: largest orbit-RMS = aerodynamic (9.360e-08 N m), then residual dipole (5.299e-08), gravity gradient (2.318e-08)",
+      "+10 deg about z: largest orbit-RMS = aerodynamic (1.138e-07 N m), then residual dipole (5.088e-08), gravity gradient (2.955e-23)",
+      "+20 deg about x: largest orbit-RMS = aerodynamic (9.866e-08 N m), then residual dipole (4.796e-08), gravity gradient (4.357e-08)",
+      "+20 deg about y: largest orbit-RMS = aerodynamic (8.380e-08 N m), then residual dipole (5.453e-08), gravity gradient (4.357e-08)",
+      "+20 deg about z: largest orbit-RMS = aerodynamic (1.295e-07 N m), then residual dipole (5.067e-08), gravity gradient (2.836e-23)"
+    ],
+    "gate_range_Nm": [
+      1e-10,
+      1e-06
+    ],
+    "values_outside_gate": [
+      "nadir-aligned/gravity_gradient/rms_Nm",
+      "nadir-aligned/gravity_gradient/max_Nm",
+      "+10 deg about z/gravity_gradient/rms_Nm",
+      "+10 deg about z/gravity_gradient/max_Nm",
+      "+20 deg about z/gravity_gradient/rms_Nm",
+      "+20 deg about z/gravity_gradient/max_Nm"
+    ]
+  },
+  "conservation_10orbits": {
+    "n_orbits": 10,
+    "t_end_s": 55536.24271252228,
+    "output_step_s": 10.0,
+    "tumble_omega0_rad_s": [
+      0.05,
+      0.12,
+      0.03
+    ],
+    "tumble_rtol": 1e-11,
+    "H_i_norm_final_drift": -5.417888360170764e-14,
+    "H_i_norm_max_abs_drift": 5.873079800267078e-14,
+    "H_i_vector_final_drift": 1.4312632755134202e-10,
+    "H_i_vector_max_drift": 1.5625009825845356e-10,
+    "T_final_drift": -1.0180745135812685e-13,
+    "T_max_abs_drift": 1.1057821325266559e-13,
+    "q_norm_raw_final_drift": -1.226180268432131e-10,
+    "q_norm_raw_max_abs_drift": 1.3506351592695864e-10,
+    "q_norm_after_integrate_max_abs_drift": 2.220446049250313e-16,
+    "raw_solve_matches_integrate_output": true,
+    "j2_energy_final_drift": 1.8851586958135158e-13,
+    "j2_energy_max_abs_drift": 2.262190434976219e-12,
+    "j2_hz_final_drift": -9.381384558082573e-14,
+    "j2_hz_max_abs_drift": 1.1293188606487092e-12,
+    "runtime_integrate_s": 15.270442300010473,
+    "runtime_raw_solve_s": 15.358078600009321
+  },
+  "runtime_s": {
+    "orbit_vs_sgp4": 0.624059000008856,
+    "eclipse_and_field": 0.8585036000004038,
+    "disturbance_magnitudes": 0.558908999999403,
+    "conservation_10orbits": 31.323536500000046,
+    "total": 33.365076899994165
+  }
+}

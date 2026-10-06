@@ -14,8 +14,8 @@
 | 2 Project A data + dead reckoning | M1, M2 | Sonnet | ✅ done (commit `ec49fa7`, 605 tests) |
 | 3 Project A 15-state EKF | M3 | Opus | ✅ done (commit see `git log`, 664 tests) |
 | 4 Project A tuning + writeup | M4 | Sonnet | ✅ done (commit see `git log`, 722 tests) — Project A complete |
-| 5 Project B physics (orbit, environment, dynamics, disturbances) | M5, M6 | Sonnet | ⏭ **next** |
-| 6 Project B control (perfect knowledge) | M7 | Opus | not started |
+| 5 Project B physics (orbit, environment, dynamics, disturbances) | M5, M6 | Sonnet | ✅ done (commit see `git log`, 898 tests) |
+| 6 Project B control (perfect knowledge) | M7 | Opus | ⏭ **next** |
 | 7 Project B attitude determination | M8 | Opus | not started |
 | 8 Project B closed loop + Monte Carlo + design doc | M9 | Opus | not started |
 | 9 Packaging + 3D visualizer | M10, M11 | Sonnet | not started |

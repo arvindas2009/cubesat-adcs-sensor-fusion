@@ -8,8 +8,8 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 | 2 A data + dead reckoning | M1, M2 | **done** |
 | 3 A 15-state EKF | M3 | **done** |
 | 4 A tuning + writeup | M4 | **done** |
-| 5 B physics | M5, M6 | next |
-| 6 B control | M7 | not started |
+| 5 B physics | M5, M6 | **done** |
+| 6 B control | M7 | next |
 | 7 B estimation | M8 | not started |
 | 8 B closed loop + MC + doc | M9 | not started |
 | 9 Packaging + visualizer | M10, M11 | not started |
@@ -153,4 +153,36 @@ Runtime 9–32 s per run (≈ 15k IMU steps/s). Bias estimation (inc 3) cuts hor
 - `writeup.md` is ~3,300 words with tables (spec said ~2 pages) and has had one math-review pass plus one fix pass; a final read-through by the user before external use is advisable. `sensor_fusion/data/NOTES.md` was not touched in Group 4.
 - Not verified/not done in Group 4: GPS-delay sensitivity; baro-offset state; GPS lever arm; accel-bias disagreement with EKF2 on the aggressive log (unexplained).
 
-**Next: Group 5** (M5, M6: Project B physics — orbit, environment, dynamics, disturbances). Recommended main-session model: **Sonnet** (`/model sonnet`).
+## Group 5 — Project B physics (M5, M6) — done
+
+**Delivered**
+- `docs/specs/adcs_physics.md` (spec), `adcs/config.py` (written by the main session, not an agent, because every other module depends on it: `SimConfig`/`SpacecraftConfig`/`OrbitConfig`, epoch 2026-03-20 12:00 UTC, 400 km / 51.6° circular, RAAN 0, 3U 4 kg box inertia diag(0.041867, 0.041867, 0.006667) kg·m², CoM offset (5, 5, 10) mm, residual dipole (1, 1, 1) mA·m², Cd 2.2).
+- `adcs/orbit.py` (Kepler ↔ rv, two-body + J2 `accel_j2`, `specific_energy`, DOP853 `propagate`, dense `Ephemeris`, `sgp4_ephemeris`), `adcs/environment.py` (Vallado Alg. 29 sun, cylindrical shadow, β angle, exponential density, IGRF via ppigrf rotated to ECI, `FieldTable` cubic-spline cache so closed-loop sims do not call ppigrf per step), `adcs/dynamics.py` (state `[q, ω, h_w]`; `I ω̇ = −ω×(Iω + h_w) − u_w + τ_ext`, `ḣ_w = u_w`; `derivative`, `rk4_step`, `integrate`, `angular_momentum_inertial`, `kinetic_energy`, `lvlh_error`, `nadir_angle`), `adcs/disturbances.py` (gravity gradient, residual dipole, flat-plate aero with co-rotating atmosphere, breakdown).
+- `adcs/report/physics_figures.py` → `physics_metrics.json` + 4 figures (`orbit_vs_sgp4`, `eclipse_and_field`, `disturbance_magnitudes`, `conservation_10orbits`); `python -m adcs.report.physics_figures` (~33 s).
+- `assumptions.md` B-03, B-08…B-15 filled with measured numbers.
+- Tests: **898 passing** (~90 s; 176 new, `adcs/tests/test_{config,orbit_env,dynamics_dist}.py`). The test-author tests were written from the spec; independent oracles: sgp4, closed-form eclipse/Kepler/J2 formulas, explicit ENU→ECI rotation, scipy `Rotation`, analytic symmetric-top and gyroscopic solutions.
+
+**★ Opus review** — no blockers; 21/21 sign/frame mutants (GMST direction, NED DCM, gravity-gradient sign, wheel reaction sign, kinematics side, LVLH transpose, aero sign, J2, obliquity, β, shadow …) are caught. Fixed after the review: field upper bound (see below), raw quaternion-norm check (`integrate(normalize=False)`), stale doc claims, spec wording on gravity-gradient sign, density-error wording, `h_w` / wheel-speed note for Group 6, ppigrf pole NaN note.
+
+**Measured numbers** (`adcs/report/physics_metrics.json`)
+
+| Check | Result |
+|---|---|
+| J2 orbit vs SGP4 (ISS TLE, started from SGP4 state) | max \|Δr\| 103 m over 1 orbit, 2.34 km over 1 day (along-track 2.34 km, radial 386 m, cross 121 m); drag/J3/J4 not modelled |
+| Two-body / J2 conservation, 10 orbits | energy 3.4e-12 / 3.5e-12, h_z 1.7e-12 (relative); nodal regression within 0.5 % of formula |
+| Eclipse fraction, default config | 0.3905 (3 orbits), 0.3939 (1 day); analytic β = 0 value 0.3901; β = 0.05° at epoch |
+| \|B\| at 400 km, 3 orbits | 18.98 / 34.98 / 49.31 µT (min/mean/max) |
+| Free tumble, 10 orbits (rtol 1e-11) | \|H_i\| 5.9e-14, T 1.1e-13, H_i vector 1.6e-10, raw \|q\|−1 1.4e-10 |
+| Disturbance torques, orbit-RMS, 7 attitudes | aero 8.4e-8…1.3e-7, residual dipole 4.8e-8…5.5e-8, gravity gradient 2.3e-8…4.4e-8 N·m (tilted); **aero is largest in 7/7** |
+
+**Decisions and deviations (record for later groups)**
+- **The plan's 25–45 µT field gate does not hold.** IGRF over the ±51.6° band at 400 km spans 18.98 µT (South Atlantic Anomaly) to 54.13 µT. Test bounds revised 20–50 → 15–55 µT, with an independent grid-scan oracle for the floor; the first 3 orbits peak at 49.3 µT but one day reaches 54.0 µT. **Size magnetorquers/magnetometers for ≈ 19–54 µT.**
+- **"Gravity gradient dominates" does not hold** for this 3U: aero torque is the largest source in every tested attitude (it scales with the CoM offset and density, ×10 swing with solar activity). The sanity gate was reinterpreted as an order-of-magnitude check (1e-10…1e-6 N·m, except gravity gradient exactly at principal-axis alignment, which is 0 by symmetry). With Ix = Iy the 3U is only marginally stable in yaw under gravity gradient.
+- `propagate` default `rtol` 1e-12 (spec said 1e-10: the energy-drift test failed at 1e-10). The 10-orbit tumble test uses `integrate(rtol=1e-11)` (default 1e-10 gives 1.8e-9 H_i drift from DOP853 phase error); thresholds were not loosened. The old "raw |q| = 1 to 1e-12" claim was unattainable and untested (renormalisation); the test now checks the raw output at 1e-9 (1.4e-10 measured).
+- `h_w` is the **total** wheel momentum with the rotors' spin-axis inertia excluded from `I`; Group 6 computes wheel speed as `(h_w·a)/J_s − a·ω`.
+- Aero uses the spherical height `|r| − R_E` for density (≤ 25 % density error at 51.6°); solar radiation pressure neglected (hand estimate 1.5e-9 N·m); inertia ignores the CoM offset.
+- `magnetic_field_eci` is NaN exactly at a geographic pole (ppigrf); irrelevant for 51.6°, relevant for polar configs. `FieldTable` queries outside `[0, t_end]` raise.
+- Open nits not fixed: `atol` 1e-6 applies to both metres and m/s in `propagate`; `sgp4_ephemeris` takes `jd0` as one double (≤ 0.3 m); the spec test 6 mentions both 0.05° and 0.1° for the equinox declination (0.05° used); the Sun-algorithm transcription test is not independent (the equinox/solstice tests are).
+- Citations in B-01…B-15 marked "unverified" (CubeSat Design Spec rev., Vallado table/equation numbers, Wertz, IGRF) must be checked before external use. TLE: python-sgp4 documentation example (epoch 2019-12-09), used only for the SGP4 comparison.
+
+**Next: Group 6** (M7: B-dot detumble, wheel pointing, momentum dumping; actuators). Recommended main-session model: **Opus** (`/model opus`).
