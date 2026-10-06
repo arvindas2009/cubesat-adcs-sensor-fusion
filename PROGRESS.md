@@ -146,5 +146,11 @@ Runtime 9–32 s per run (≈ 15k IMU steps/s). Bias estimation (inc 3) cuts hor
 - Citations in A-07…A-12 marked "unverified" still need checking before any external use.
 - Reviewer-only numbers in A-13 (bias-normalised differences, EKF2 bias wander rates) come from scratch scripts that are not in the repo.
 - `tuning_sweep.py` sets `OPENBLAS_NUM_THREADS=1` itself (20 workers otherwise hit OpenBLAS allocation failures).
+- **Open: EKF2 hover yaw-reset time** is 16.06 s in `sensor_fusion/data/NOTES.md` (line 151) but 16.08 s in `final_metrics_<id>.json` (`ekf2_reset_times_s`); A-08 was changed to 16.08. The cause (rounding vs window t0) was not checked and NOTES.md was not edited.
+- **n_eff check:** the reviewer's n_eff numbers for GPS position were wrong; the writeup uses the recomputed values (scipy `chi2` with n_eff × dof degrees of freedom: aggressive gps_pos 0.79 needs n_eff ≈ 52, other gps_pos 6, hover gps_pos 3; gps_vel 2–3; mag 3/4/10; baro 1 / 266 / 822). The n_eff table is a calculation from the ratios, not stored in a JSON.
+- Group 3 notes above say "GPS-position NIS is 2.7 on aggressive" — that is a mean NIS for 3 dof (ratio 0.79); use ratios.
+- The suite now takes ~85–90 s (was ~60 s; `CLAUDE.md` command comment updated); the two hover smoke tests in `test_run_flight.py` take ~20 s each.
+- `writeup.md` is ~3,300 words with tables (spec said ~2 pages) and has had one math-review pass plus one fix pass; a final read-through by the user before external use is advisable. `sensor_fusion/data/NOTES.md` was not touched in Group 4.
+- Not verified/not done in Group 4: GPS-delay sensitivity; baro-offset state; GPS lever arm; accel-bias disagreement with EKF2 on the aggressive log (unexplained).
 
 **Next: Group 5** (M5, M6: Project B physics — orbit, environment, dynamics, disturbances). Recommended main-session model: **Sonnet** (`/model sonnet`).
