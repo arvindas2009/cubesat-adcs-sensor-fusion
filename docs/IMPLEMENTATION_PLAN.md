@@ -190,6 +190,8 @@ Why grouped: sensors, TRIAD and MEKF form one estimation stack validated togethe
 ### Group 8 — Project B closed loop, Monte Carlo, design document (M9) · main session: **Opus**
 Why grouped: Monte Carlo and the design document are both direct outputs of the closed-loop sim.
 
+**Before writing the Group 8 spec:** read `PROGRESS.md` → Group 7 → "Findings / open items for Group 8" (onboard field model ≠ truth, magnetometer bias, CSS FOV/albedo, in-loop gyro sampling, public MEKF stepper, TRIAD minimum angle, gating, detumble→pointing switch on the estimate) and `assumptions.md` B-20 "Scope and optimism". Review scratch scripts behind those numbers: `docs/review_scratch/group7/`.
+
 | Task | Who | Model |
 |---|---|---|
 | `simulate.py` mode machine (detumble → TRIAD init → MEKF pointing), controller on **estimated** attitude; debug integration issues | main | **Opus** |
