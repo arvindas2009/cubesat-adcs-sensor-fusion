@@ -18,7 +18,7 @@
 | 6 Project B control (perfect knowledge) | M7 | Opus | ✅ done (commit see `git log`, 1054 tests) |
 | 7 Project B attitude determination | M8 | Opus | ✅ done (commit see `git log`, 1177 tests) |
 | 8 Project B closed loop + Monte Carlo + design doc | M9 | Opus | ✅ done (commit see `git log`, 1388 tests) — Project B complete |
-| 9 Packaging + 3D visualizer | M10, M11 | Sonnet | ⏭ **next** |
+| 9 Packaging + 3D visualizer | M10, M11 | Sonnet | ✅ done (commit see `git log`, 1436 tests) — Monte Carlo regeneration in a fresh venv not completed (see `PROGRESS.md`) |
 
 Details of what each completed group delivered, measured numbers, and open decisions live in `PROGRESS.md`.
 

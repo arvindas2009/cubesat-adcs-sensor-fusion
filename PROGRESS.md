@@ -12,7 +12,7 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 | 6 B control | M7 | **done** |
 | 7 B estimation | M8 | **done** |
 | 8 B closed loop + MC + doc | M9 | **done** |
-| 9 Packaging + visualizer | M10, M11 | next |
+| 9 Packaging + visualizer | M10, M11 | **done** |
 
 ## Group 1 — Foundations (M0) — done
 
@@ -303,4 +303,25 @@ Group 8 resolved: closed loop on the estimate with a public MEKF stepper and in-
 - Not done: gating in the closed loop (left off), NIS monitor/FDIR, albedo state, orbit-knowledge error, dumping-threshold revisit, sub-stepping convergence (B-17), ★ review (none in the Group 8 task table).
 - Suite time grew to ~230 s (closed-loop and MEKF-extension fixtures ≈ 50 s); `CLAUDE.md` updated.
 
-**Next: Group 9** (M10 packaging/README/smoke test, M11 visualizer). Recommended main-session model: **Sonnet** (`/model sonnet`).
+## Group 9 — Packaging, README, smoke test, 3D visualizer (M10, M11) — done
+
+**Delivered**
+- `README.md` rewritten (doc-writer, edited by main): headline tables, layout, setup, reproduction commands with measured wall times and the real worker defaults, gallery, 3D visualizer section, reproducibility check, known limitations.
+- `docs/specs/visualizer.md` (contract) → `adcs/visualize.py` (py-implementer): display frame = LVLH rotated 180° about x (zenith up, nadir = (0,0,-1)); `body_dcm_lvlh`, `sun_lvlh`, `frame_schedule` (time-warped frame choice by bisection on a target angle, 1–60 s spacing), `build_animation_data`, `render` (Agg; MP4 via ffmpeg/libx264, GIF via Pillow); CLI `python -m adcs.visualize`.
+- `adcs/tests/test_visualize.py` (test-author, from the spec): 48 tests.
+- `adcs/report/figures/closed_loop_animation.mp4` (0.80 MB) and `.gif` (1.5 MB, from the MP4 with ffmpeg). Visual aid only; no numbers added.
+- Tests: **1436 passing** (1388 + 48), no failures/errors/skips, 260 s run file by file with `OPENBLAS_NUM_THREADS=1`.
+
+**Smoke test (fresh venv, Python 3.14.2, versions identical to Group 1)**
+- Fresh log download SHA-256 identical to the committed `.ulg` files.
+- Fresh-venv suite: 1388 tests, no failures (before the visualizer tests; counted from dots).
+- Regenerated and compared with the committed copies: all Project A scripts, `physics_figures`, `control_figures`, `estimation_figures`, `closed_loop_figures`, default `adcs.simulate`. Every number reproduces (estimation ≤ 1.75e-12 relative, closed loop bit-identical, default `adcs.simulate` = closed-loop seed 0). Regenerated files were reverted with `git checkout`.
+- "altitude" sweep: every hit is genuine height.
+
+**Not done / open**
+- `python -m adcs.monte_carlo`, `monte_carlo_figures` and `mc_worst_runs` were **not** regenerated in the fresh venv (run stopped at the user's request on a memory-starved machine; ~45+ min on 20 workers, consider `--workers 8`). The committed Monte Carlo results are the Group 8 ones.
+- Wrong worker-default claim in the first README draft was corrected to the real defaults (README "Worker counts").
+- Open note carried over: hover EKF2 yaw-reset time 16.06 s (`NOTES.md`) vs 16.08 s (`final_metrics_<id>.json`).
+- Note: `pyproject.toml` sets `addopts = "-q"`; an extra `-q` hides the "N passed" line.
+
+All nine groups are complete. Anything further (MC regeneration, the unexplained worst Monte Carlo excursions, an innovation monitor) is outside the plan.

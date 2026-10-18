@@ -19,7 +19,7 @@ Two linked pure-Python projects sharing an error-state EKF + quaternion core: **
 ## Commands (Windows)
 
 ```bash
-.venv/Scripts/python -m pytest -q          # all tests (~230 s)
+.venv/Scripts/python -m pytest -q          # all tests (~260 s, 1436 tests)
 .venv/Scripts/python -m pip install -e .    # after adding packages/modules
 ```
 
