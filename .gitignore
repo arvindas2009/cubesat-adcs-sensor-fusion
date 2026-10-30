@@ -10,3 +10,5 @@ sensor_fusion/data/raw/
 **/report/figures/_scratch/
 .kilo/
 .claude/settings.local.json
+webapp/frontend/node_modules/
+webapp/.cache/

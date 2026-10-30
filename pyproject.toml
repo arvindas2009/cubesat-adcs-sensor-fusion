@@ -7,9 +7,12 @@ name = "space-estimation-control"
 version = "0.1.0"
 requires-python = ">=3.12"
 
+[project.optional-dependencies]
+web = ["fastapi>=0.110", "uvicorn[standard]>=0.29", "httpx>=0.27"]
+
 [tool.setuptools.packages.find]
-include = ["common*", "sensor_fusion*", "adcs*"]
+include = ["common*", "sensor_fusion*", "adcs*", "webapp*"]
 
 [tool.pytest.ini_options]
-testpaths = ["common", "sensor_fusion", "adcs"]
+testpaths = ["common", "sensor_fusion", "adcs", "webapp"]
 addopts = "-q"

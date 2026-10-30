@@ -13,6 +13,9 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 | 7 B estimation | M8 | **done** |
 | 8 B closed loop + MC + doc | M9 | **done** |
 | 9 Packaging + visualizer | M10, M11 | **done** |
+| 10 Browser sim: engine stepper + server | M12 | **done** |
+| 11 Browser sim: ADCS frontend | M13 | next |
+| 12 Browser sim: PX4 replay + docs | M14 | planned |
 
 ## Group 1 — Foundations (M0) — done
 
@@ -324,4 +327,70 @@ Group 8 resolved: closed loop on the estimate with a public MEKF stepper and in-
 - Open note carried over: hover EKF2 yaw-reset time 16.06 s (`NOTES.md`) vs 16.08 s (`final_metrics_<id>.json`).
 - Note: `pyproject.toml` sets `addopts = "-q"`; an extra `-q` hides the "N passed" line.
 
-All nine groups are complete. Anything further (MC regeneration, the unexplained worst Monte Carlo excursions, an innovation monitor) is outside the plan.
+All nine original groups are complete. Anything further (MC regeneration, the unexplained worst Monte Carlo excursions, an innovation monitor) is outside the plan. Groups 10–12 (browser simulator) were added afterwards; see below.
+
+## Group 10 — Browser sim: engine stepper + server API (M12) — done
+
+**Delivered**
+- **Specs.** `docs/specs/stepper.md` and `docs/specs/webapp_protocol.md`.
+  - The stepper spec was extended after the ★ review with the kick cap, the failure latch and golden portability.
+  - The protocol spec fixes the frame layout, including the display frame `C = DISPLAY_FLIP @ body_dcm_lvlh(q, r, v)`, the same frame as the Group 9 visualizer.
+- **Golden equivalence gate** (figures-runner, captured *before* any edit).
+  - The capture is `adcs/tests/data/closed_loop_golden.npz` (3.0 MB) with its helper, `adcs/tests/golden_closed_loop.py`. The helper provides `CASES`, `run_case`, `flatten`, `compare` (strict `tobytes` per array, `meta_json` string) and `environment_matches`.
+  - There are 7 cases:
+    - ideal+G7 and realistic+design, seeds 0 and 1, **2.0 orbits** (the plan said 1.5; seed 1 only switches at 1.64 orbits);
+    - a 600 s `log_every=1` case;
+    - ×1.1 truth inertia with dumping off;
+    - `lvlh_wheels_fallback`, which adds 4 switches, 4 fallbacks and 16 dumping rows. It was captured from the HEAD module after the review showed that no other case reaches the fallback or dumping branches.
+  - The capture was reproduced in a second process. Re-capture **only** from `git show 137bc1d:adcs/simulate.py`.
+- **`adcs/stepper.py`** (py-implementer): `ClosedLoopSim`.
+  - Methods: `step(n)`, `kick(dw)`, `snapshot()`, `result()`.
+  - State: `k`, `t`, `done`, `remaining`, `state` (a copy), `failed`, and the read-only environment arrays `t_grid`/`r_eci`/`v_eci`/`sun_eci`/`lit`.
+  - `MAX_KICK_RATE` = 30 °/s. A kick at the last sample is rejected. Any exception mid-step latches the sim as failed.
+  - `run_closed_loop` is now a thin wrapper, so there is one code path. Eleven orphaned imports were removed from `simulate.py`.
+  - The kick model is recorded as `assumptions.md` [B-25]: Δω with `q` and the total wheel momentum held, so ΔL = I_true Δω.
+- **`webapp/`** (py-implementer):
+  - `python -m webapp` (FastAPI + uvicorn, binds to 127.0.0.1:8000, shows a "frontend not built" page until Group 11);
+  - `server/schemas.py` (`SessionParams`, commands, `build_sim_kwargs`);
+  - `server/adcs_session.py` (`AdcsSession`, `SessionRegistry`, the pure `frame()` builder; streaming loop at ~30 Hz using `asyncio.to_thread`);
+  - `server/app.py` (REST + WebSocket + static mount);
+  - `server/tests/ws_smoke.py`.
+  - `pyproject.toml` has a `[web]` extra (fastapi 0.162, uvicorn 0.54, httpx 0.28; websockets 17.4 comes with uvicorn), and `webapp` is in `testpaths`. Every webapp test module importorskips fastapi.
+- **Tests: 1742 passing** (242 s, `OPENBLAS_NUM_THREADS=1`). Of these, 118 are new in `test_stepper.py` and 188 in `webapp/server/tests/` (`test_schemas` 92, `test_adcs_session` 42, `test_app` 54).
+  - Oracles: the golden file, run plain and in irregular chunks; scipy DOP853 free rotation, with a kick and a full inertia matrix; conservation of H; independent frame recomputation from `snapshot()`; the CLI's `run_closed_loop` (server defaults are bit-identical to `python -m adcs.simulate`).
+  - The server suite passed 5 runs in a row after the disconnect fixes below.
+  - There is one third-party warning: the starlette TestClient deprecates httpx.
+
+**★ Review (math-reviewer): OK to proceed, no blockers.**
+- The step body matches HEAD line for line. The reviewer's own byte comparison against HEAD covered the branches the golden misses (fallbacks, dumping, vector CSS, `duty=1`, explicit `mag_bias`) and found 0 differences.
+- The kick physics are correct.
+- All should-fix findings were addressed:
+  - kick cap, because RK4 at 1 s loses energy at high rates (ΔE/E over 600 s torque-free: −1.2e-4 at 0.5 rad/s, −7.8e-3 at 1 rad/s);
+  - failure latch;
+  - golden skip on a version or platform mismatch;
+  - fallback and dumping golden case;
+  - weak tests replaced: the momentum oracle now integrates with I_true against DOP853; the kick-fallback test states and asserts x-wheel saturation (ΔL 3.65e-3 > h_max 1.77e-3) and has a 2.25 °/s counter-case without a fallback; `cfg` forwarding is checked with a 550 km orbit.
+
+**Bugs found by the server tests and fixed (main session)**
+- **`_receive`.** It awaited its cancelled helper futures, which let a `CancelledError` escape when the ASGI server cancelled the scope after a disconnect. About 8–10 of the 54 `test_app` tests failed per run, a different set each time.
+- **`serve()` cleanup.** It cleared the client only after an await, so a cancellation left the session marked connected. Such a session could never be evicted and caused permanent 429s.
+
+**Measured (exit criteria)**
+- **Engine** (`ClosedLoopSim`, realistic+design, 2 orbits, one core): 594–595 steps/s, i.e. **≈ 595× real time**; ideal+G7 665–715×.
+  - The refactor costs no speed. HEAD and the wrapper alternated in one process ran within 3 % of each other, the wrapper slightly faster.
+  - **The ≥ 500× target holds only when the laptop runs at full speed.** The same run measured 300–390 steps/s a few minutes later with the machine idle (2 % load), so it is run-to-run CPU variation (boost/power state). The first golden capture's 357–480 steps/s was also measured while another agent was using the CPU.
+  - The profile shows no stepper overhead. The time goes to the MEKF (30 %), disturbance torques (29 %, aero 17 %), RK4 (20 %) and albedo. `np.cross` on 3-vectors costs about 26 % cumulative, mostly argument-handling overhead. A byte-preserving speed-up (swap in `_cross`) is possible but not done.
+- **Server streaming** (`python -m webapp`, client in a separate process, default session, 10 s per speed setting):
+  - at 100×: **30.1 Hz, 100×** achieved;
+  - at 500× and 2000×: saturates at **≈ 400×, ≈ 10 Hz**. The engine alone measured 350–390 steps/s over the same sim span just afterwards, so streaming adds no measurable overhead. When the CPU cannot keep up, frames drop to about 10 Hz because each batch is capped at ~0.1 s of compute (spec §3.3), and `speed_actual` reports the shortfall.
+  - Building a 15-orbit session takes 1.3 s.
+- **Scripted WebSocket client** (`python -m webapp.server.tests.ws_smoke`, server and client in one process): OK, 26–31 frames in 2 s at 330–370×, `t` strictly increasing. It reads lower than the separate-process benchmark because the client competes with the server for the GIL.
+
+**Decisions and notes**
+- The speed setting survives `reset`. The `speed` and `play` commands send no frame (only state-changing commands do). `speed_actual` is 0 while paused.
+- The orbit ring (`info.orbit_track_eci_m`) closes with a copy of its first point. With J2, a real one-period position does not close. This is display only.
+- `result()` after a failure latch returns only the rows of fully committed `step()` chunks.
+- A `kick` is applied to the pending state. Its own sample's gyro, estimator and controller do not see it; the next gyro sample does (spec §2).
+- Not tested: the `n_max` batch cap and the dropped-budget behaviour. Both depend on wall-clock timing, and the spec gives no observable bound.
+- Process note: two agents killed stray Python processes broadly (`pkill -f python`, `taskkill /IM python.exe`) during the session. All tests were re-run afterwards. Future agent prompts should forbid broad process kills.
+- The 27 report files that were already modified before this group (Group 9 smoke-test regeneration leftovers, line endings / last-digit diffs) are **not** part of the Group 10 commit.

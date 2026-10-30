@@ -39,10 +39,9 @@ from adcs.control import (PointingGains, bdot_dipole, bdot_gain, dump_active,
                           dump_dipole, nadir_reference, pointing_torque)
 from adcs.disturbances import total_disturbance_torque
 from adcs.dynamics import _cross, rk4_step
-from adcs.environment import FieldTable, sunlit
-from adcs.estimation import MEKF, MekfConfig, css_vector_complete, nees, triad_init, vector_angle
-from adcs.sensors import (Gyro, GyroConfig, MagnetometerConfig, SunSensorConfig, albedo_currents,
-                          gauss_markov, magnetometer, sun_sensor_currents, sun_vector_from_currents)
+from adcs.environment import FieldTable
+from adcs.estimation import MekfConfig, nees
+from adcs.sensors import GyroConfig, MagnetometerConfig, SunSensorConfig
 from adcs.orbit import Ephemeris, initial_state, orbital_period
 
 __all__ = [
@@ -373,242 +372,16 @@ def run_closed_loop(y0, t_end: float, seed: int | None = 0, cfg: SimConfig = DEF
     (3, 3) is the truth inertia (default: the nominal ``cfg`` inertia, which the
     controller always uses). Random streams ``default_rng(seed).spawn(4)`` =
     (gyro, magnetometer, sun sensor, truth errors), the first three as in
-    ``adcs.sensors.measure_series``.
+    ``adcs.sensors.measure_series``. Implemented by :class:`adcs.stepper.ClosedLoopSim`.
     """
-    T = float(mtq.control_period)
-    n_steps = int(round(float(t_end) / T))
-    if n_steps < 1:
-        raise ValueError("t_end shorter than one control period")
-    t_grid = np.arange(n_steps + 1) * T
-    inertia_nom = cfg.spacecraft.inertia
-    inertia = inertia_nom if inertia_true is None else np.asarray(inertia_true, float)
-    k_bdot = (bdot_gain(inertia_nom, cfg.orbit.a, cfg.orbit.inc)
-              if ctrl.bdot_k is None else float(ctrl.bdot_k))
+    from adcs.stepper import ClosedLoopSim   # lazy: stepper imports this module
 
-    rng_g, rng_m, rng_s, rng_truth = np.random.default_rng(seed).spawn(4)
-    rng_bias, rng_field, rng_alb = rng_truth.spawn(3)
-
-    # --- truth environment and onboard models -----------------------------
-    r0, v0 = initial_state(cfg)
-    eph = Ephemeris(r0, v0, t_grid[-1] + 10.0)
-    table = FieldTable(eph, cfg, t_grid[-1] + 10.0)
-    if sensors.onboard_field_degree == table.max_degree:
-        table_ob = table
-    else:
-        table_ob = FieldTable(eph, cfg, t_grid[-1] + 10.0, max_degree=sensors.onboard_field_degree)
-    r_all, v_all = eph.at(t_grid)
-    b_ob_all = table_ob.b_eci(t_grid)                    # filter reference field
-    b_all = table.b_eci(t_grid) + gauss_markov(n_steps + 1, T, sensors.field_residual_sigma,
-                                                sensors.field_residual_tau, rng_field)
-    s_all = table.sun_dir_eci(t_grid)
-    lit_all = sunlit(r_all, s_all)
-    qref_all, wref_all = nadir_reference(r_all, v_all)
-    if sensors.albedo > 0.0:
-        a_all = np.clip(sensors.albedo + gauss_markov(n_steps + 1, T, sensors.albedo_sigma,
-                                                      sensors.albedo_tau, rng_alb, dim=1)[:, 0],
-                        *sensors.albedo_clip)
-    else:
-        a_all = None
-    bias_draw = rng_bias.standard_normal(3)
-    mag_bias = (np.asarray(sensors.mag_bias, float) if sensors.mag_bias is not None
-                else sensors.mag_bias_sigma * bias_draw)
-    css_true = SunSensorConfig(sigma_diode=css_cfg.sigma_diode, threshold=css_cfg.threshold,
-                               fov=sensors.css_fov)
-    gyro = Gyro(gyro_cfg, rng_g)
-
-    on_t = float(mtq.on_time)
-    off_t = T - on_t
-    y = np.asarray(y0, dtype=float).copy()
-    y[0:4] = quat.normalize(y[0:4])
-
-    f: MEKF | None = None
-    k_init = -1
-    cur_mode = MODE_DETUMBLE
-    below_since = None
-    above_since = None
-    switch_time = float("nan")
-    switch_times: list = []
-    fallback_times: list = []
-    dumping = False
-    mag_prev = None
-    q_prev = None
-
-    n_log = n_steps // log_every + 1
-    vec = {name: np.full((n_log, d), np.nan) for name, d in
-           (("q", 4), ("w", 3), ("h_w", 3), ("wheel_speed", 3), ("m", 3), ("u_w", 3),
-            ("tau_dist", 3), ("tau_mag", 3), ("q_est", 4), ("b_est", 3), ("bm_est", 3),
-            ("know_err", 3), ("w_est", 3), ("gyro_bias", 3))}
-    sca = {name: np.full(n_log, np.nan) for name in ("t", "nadir_err", "est_nadir_err", "att_sigma")}
-    log_mode = np.zeros(n_log, dtype=int)
-    log_dump = np.zeros(n_log, dtype=bool)
-    log_used = np.zeros(n_log, dtype=int)
-    log_lit = np.zeros(n_log, dtype=bool)
-    log_P = np.full((n_log, 3, 3), np.nan)
-    j = 0
-
-    for k in range(n_steps + 1):
-        t = t_grid[k]
-        q, w, h = y[0:4], y[4:7], y[7:10]
-        r, v, b_eci, s_eci = r_all[k], v_all[k], b_all[k], s_all[k]
-
-        # ---- 1. sensors ---------------------------------------------------
-        gyro_k = None
-        if q_prev is not None:
-            w_mean = quat.to_rotvec(quat.multiply(quat.conjugate(q_prev), q)) / T
-            gyro_k = gyro.sample(w_mean, T)
-        mag_k = magnetometer(_rot_inv(q, b_eci), rng_m, mag_cfg, bias=mag_bias)
-        alb = None if a_all is None else albedo_currents(q, r, s_eci, a_all[k])
-        currents = sun_sensor_currents(_rot_inv(q, s_eci), bool(lit_all[k]), rng_s, css_true,
-                                       albedo=alb)
-        sun_k, sun_valid = sun_vector_from_currents(currents, css_true)
-        sun_valid = bool(sun_valid)
-
-        # ---- 2. estimator -------------------------------------------------
-        used = 0
-        if f is None:
-            ok = sun_valid
-            if ok and mekf_cfg.css_mode == "diodes":
-                ok = css_vector_complete(currents, mekf_cfg.diode_min_current)
-            if ok and mekf_cfg.triad_min_angle > 0.0:
-                ok = vector_angle(mag_k, sun_k) >= mekf_cfg.triad_min_angle
-            if ok:
-                q0, P0 = triad_init(mag_k, sun_k, b_ob_all[k], s_eci, mekf_cfg)
-                f = MEKF(q0, np.zeros(3), P0, mekf_cfg)
-                k_init = k
-        elif gyro_k is not None:
-            n_sun = len(f.ekf.history.get("sun", ()))
-            n_css = len(f.ekf.history.get("css", ()))
-            f.step(gyro_k, T, mag_k, b_ob_all[k], sun_k, s_eci, sun_valid, currents, r, t)
-            if len(f.ekf.history.get("sun", ())) > n_sun:
-                used = 1
-            hist = f.ekf.history.get("css", ())
-            if len(hist) > n_css:
-                used = int(hist[-1].residual.size)
-
-        # ---- 3. mode machine on the estimate ------------------------------
-        if f is not None:
-            q_hat, b_hat, bm_hat = f._q, f._b, f._bm
-            w_hat = None if gyro_k is None else gyro_k - b_hat
-        else:
-            q_hat = b_hat = None
-            bm_hat = np.zeros(3)
-            w_hat = gyro_k
-        rate_hat = np.inf if w_hat is None else float(np.linalg.norm(w_hat))
-        if cur_mode == MODE_DETUMBLE:
-            ready = (f is not None and (k - k_init) * T >= modes.switch_min_filter_time
-                     and f.att_sigma < modes.switch_att_sigma)
-            if ready and rate_hat < ctrl.detumble_threshold:
-                below_since = t if below_since is None else below_since
-                if t - below_since >= ctrl.detumble_hold:
-                    cur_mode = MODE_POINTING
-                    switch_times.append(float(t))
-                    if np.isnan(switch_time):
-                        switch_time = float(t)
-                    above_since = None
-            else:
-                below_since = None
-        else:
-            if rate_hat > modes.safe_rate:
-                above_since = t if above_since is None else above_since
-                if t - above_since >= modes.safe_hold:
-                    cur_mode = MODE_DETUMBLE
-                    fallback_times.append(float(t))
-                    below_since = None
-                    dumping = False
-            else:
-                above_since = None
-
-        # ---- 4. control from measurements / estimates ---------------------
-        m = np.zeros(3)
-        u_w = np.zeros(3)
-        if cur_mode == MODE_DETUMBLE:
-            if mag_prev is not None:
-                m = bdot_dipole(mag_k, mag_prev, T, k_bdot, mtq.m_max)
-        else:
-            b_corr = mag_k - bm_hat
-            omega = wheel_speed(h, w, wheel)               # tachometers (truth)
-            frac = float(np.max(np.abs(omega))) / wheel.max_speed
-            dumping = ctrl.dumping and dump_active(dumping, frac, ctrl.dump_on, ctrl.dump_off)
-            if dumping:
-                m = dump_dipole(h, b_corr, ctrl.dump_k, mtq.m_max)
-            tau, _ = pointing_torque(q_hat, w_hat, h, qref_all[k], wref_all[k], inertia_nom, ctrl.gains)
-            tau_mag_ff = mtq.duty * _cross(m, b_corr)
-            u_w = limit_wheel_torque(-(tau - tau_mag_ff), h, w, wheel, dt=T)
-        mag_prev = mag_k
-        q_prev = q.copy()
-
-        tau_d = (total_disturbance_torque(r, v, q, b_eci, cfg.spacecraft)
-                 if ctrl.disturbances else np.zeros(3))
-
-        if k % log_every == 0:
-            vec["q"][j], vec["w"][j], vec["h_w"][j] = q, w, h
-            vec["wheel_speed"][j] = wheel_speed(h, w, wheel)
-            vec["m"][j], vec["u_w"][j], vec["tau_dist"][j] = m, u_w, tau_d
-            vec["tau_mag"][j] = _cross(m, _rot_inv(q, b_eci))
-            vec["gyro_bias"][j] = gyro.bias
-            if w_hat is not None:
-                vec["w_est"][j] = w_hat
-            sca["t"][j] = t
-            dq = quat.multiply(quat.conjugate(qref_all[k]), q)
-            sca["nadir_err"][j] = np.linalg.norm(quat.to_rotvec(dq))
-            if f is not None:
-                vec["q_est"][j], vec["b_est"][j], vec["bm_est"][j] = q_hat, b_hat, bm_hat
-                vec["know_err"][j] = quat.error_rotvec(q_hat, q)
-                sca["att_sigma"][j] = f.att_sigma
-                log_P[j] = f.ekf._P[:3, :3]
-                dqe = quat.multiply(quat.conjugate(qref_all[k]), q_hat)
-                sca["est_nadir_err"][j] = np.linalg.norm(quat.to_rotvec(dqe))
-            log_mode[j] = cur_mode
-            log_dump[j] = dumping
-            log_used[j] = used
-            log_lit[j] = lit_all[k]
-            j += 1
-        if k == n_steps:
-            break
-
-        def ext_on(_t, qq, _w, _h, m=m, b_eci=b_eci, tau_d=tau_d):
-            return _cross(m, _rot_inv(qq, b_eci)) + tau_d
-
-        y = rk4_step(t, y, on_t, inertia, u_w, ext_on)
-        if off_t > 0.0:
-            y = rk4_step(t + on_t, y, off_t, inertia, u_w, tau_d)
-
-    nis = {}
-    if f is not None:
-        for name in ("mag", "sun", "css"):
-            lg = f.ekf.innovations(name)
-            nis[name] = {"t": lg.t, "nis": lg.nis, "dof": lg.dof, "accepted": lg.accepted}
-    meta = {
-        "mode": "closed_loop",
-        "seed": seed,
-        "t_end": float(t_grid[-1]),
-        "control_period": T,
-        "bdot_k": k_bdot,
-        "switch_time": switch_time,
-        "switch_times": switch_times,
-        "fallback_times": fallback_times,
-        "t_init": float(t_grid[k_init]) if k_init >= 0 else float("nan"),
-        "orbital_period": float(orbital_period(cfg.orbit.a)),
-        "mag_bias_true": mag_bias,
-        "inertia_true": inertia.copy(),
-        "nis": nis,
-        "ctrl": asdict(ctrl),
-        "sensors": asdict(sensors),
-        "mekf": asdict(mekf_cfg),
-        "modes": asdict(modes),
-        "mtq": asdict(mtq),
-        "wheel": asdict(wheel) | {"max_speed": wheel.max_speed, "spin_inertia": wheel.spin_inertia},
-    }
-    sl = slice(0, j)
-    return ClosedLoopResult(
-        t=sca["t"][sl], q=vec["q"][sl], w=vec["w"][sl], h_w=vec["h_w"][sl],
-        wheel_speed=vec["wheel_speed"][sl], m=vec["m"][sl], u_w=vec["u_w"][sl],
-        tau_dist=vec["tau_dist"][sl], tau_mag=vec["tau_mag"][sl], nadir_err=sca["nadir_err"][sl],
-        rate=np.linalg.norm(vec["w"][sl], axis=1), mode=log_mode[sl], dump=log_dump[sl], meta=meta,
-        q_est=vec["q_est"][sl], b_est=vec["b_est"][sl], bm_est=vec["bm_est"][sl],
-        att_sigma=sca["att_sigma"][sl], P_att=log_P[sl], know_err=vec["know_err"][sl],
-        est_nadir_err=sca["est_nadir_err"][sl], w_est=vec["w_est"][sl],
-        gyro_bias=vec["gyro_bias"][sl], sun_used=log_used[sl], lit=log_lit[sl])
+    sim = ClosedLoopSim(y0, t_end, seed=seed, cfg=cfg, ctrl=ctrl, mtq=mtq, wheel=wheel,
+                        sensors=sensors, mekf_cfg=mekf_cfg, modes=modes, mag_cfg=mag_cfg,
+                        css_cfg=css_cfg, gyro_cfg=gyro_cfg, inertia_true=inertia_true,
+                        log_every=log_every)
+    sim.step(sim.remaining)
+    return sim.result()
 
 
 def summarize_closed_loop(res: ClosedLoopResult, settle: float | None = None) -> dict:
