@@ -322,12 +322,12 @@ Group 8 resolved: closed loop on the estimate with a public MEKF stepper and in-
 - "altitude" sweep: every hit is genuine height.
 
 **Not done / open**
-- `python -m adcs.monte_carlo`, `monte_carlo_figures` and `mc_worst_runs` were **not** regenerated in the fresh venv (run stopped at the user's request on a memory-starved machine; ~45+ min on 20 workers, consider `--workers 8`). The committed Monte Carlo results are the Group 8 ones.
+- ~~Monte Carlo not regenerated in the fresh venv~~ — **closed 2026-10-31.** Second fresh venv (Python 3.14.2 from `requirements.txt`; newer patch versions than `.venv`: numpy 2.5.4, pyulog 1.3.0, Pillow 13.0.0, pandas 3.1.0; scipy, matplotlib, sgp4, ppigrf unchanged). `adcs.monte_carlo` on 6 workers (design 1109 s, ideal 892 s; a first attempt was killed for low memory after the design campaign), `monte_carlo_figures` 3 s, `mc_worst_runs` 67 s. Result vs committed: all non-timing numbers bit-identical (design 3755, ideal 3493), `mc_worst_runs.json` and every `mc_*.png` byte-identical, `monte_carlo_summary.md` differs only in wall-time lines. Regenerated files reverted.
 - Wrong worker-default claim in the first README draft was corrected to the real defaults (README "Worker counts").
 - Open note carried over: hover EKF2 yaw-reset time 16.06 s (`NOTES.md`) vs 16.08 s (`final_metrics_<id>.json`).
 - Note: `pyproject.toml` sets `addopts = "-q"`; an extra `-q` hides the "N passed" line.
 
-All nine original groups are complete. Anything further (MC regeneration, the unexplained worst Monte Carlo excursions, an innovation monitor) is outside the plan. Groups 10–12 (browser simulator) were added afterwards; see below.
+All nine original groups are complete, and the Monte Carlo has since been reproduced in a fresh venv (2026-10-31, above). Anything further (the unexplained worst Monte Carlo excursions, an innovation monitor) is outside the plan. Groups 10–12 (browser simulator) were added afterwards; see below.
 
 ## Group 10 — Browser sim: engine stepper + server API (M12) — done
 

@@ -18,7 +18,7 @@
 | 6 Project B control (perfect knowledge) | M7 | Opus | ✅ done (commit see `git log`, 1054 tests) |
 | 7 Project B attitude determination | M8 | Opus | ✅ done (commit see `git log`, 1177 tests) |
 | 8 Project B closed loop + Monte Carlo + design doc | M9 | Opus | ✅ done (commit see `git log`, 1388 tests) — Project B complete |
-| 9 Packaging + 3D visualizer | M10, M11 | Sonnet | ✅ done (commit see `git log`, 1436 tests) — Monte Carlo regeneration in a fresh venv not completed (see `PROGRESS.md`) |
+| 9 Packaging + 3D visualizer | M10, M11 | Sonnet | ✅ done (commit see `git log`, 1436 tests) — Monte Carlo reproduced bit-identically in a fresh venv on 2026-10-31 (see `PROGRESS.md`) |
 | 10 Browser sim: engine stepper + server API | M12 | Opus | ✅ done (commit see `git log`, 1742 tests) — engine ≈ 595× real time when the CPU is at full speed, 300–390× at other times (see `PROGRESS.md`) |
 | 11 Browser sim: ADCS frontend (Vite + TS + Three.js) | M13 | Sonnet | ✅ done (commit see `git log`, 1747 pytest + 68 vitest; browser check GIF `webapp/docs/adcs_browser_check.gif`) |
 | 12 Browser sim: PX4 log replay + docs | M14 | Sonnet | ⏭ next |
