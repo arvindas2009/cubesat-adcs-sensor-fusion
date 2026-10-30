@@ -14,8 +14,8 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 | 8 B closed loop + MC + doc | M9 | **done** |
 | 9 Packaging + visualizer | M10, M11 | **done** |
 | 10 Browser sim: engine stepper + server | M12 | **done** |
-| 11 Browser sim: ADCS frontend | M13 | next |
-| 12 Browser sim: PX4 replay + docs | M14 | planned |
+| 11 Browser sim: ADCS frontend | M13 | **done** |
+| 12 Browser sim: PX4 replay + docs | M14 | next |
 
 ## Group 1 — Foundations (M0) — done
 
@@ -394,3 +394,43 @@ All nine original groups are complete. Anything further (MC regeneration, the un
 - Not tested: the `n_max` batch cap and the dropped-budget behaviour. Both depend on wall-clock timing, and the spec gives no observable bound.
 - Process note: two agents killed stray Python processes broadly (`pkill -f python`, `taskkill /IM python.exe`) during the session. All tests were re-run afterwards. Future agent prompts should forbid broad process kills.
 - The 27 report files that were already modified before this group (Group 9 smoke-test regeneration leftovers, line endings / last-digit diffs) are **not** part of the Group 10 commit.
+
+## Group 11 — Browser sim: ADCS frontend (M13) — done
+
+**Delivered**
+- **Spec.** `docs/specs/frontend.md` (main). It fixes **one** mapping into Three.js (Y-up): `M · (x, y, z) = (x, z, −y)`, a proper −90° rotation about x. This mapping serves both the ECI scene and the LVLH display scene, and it coincides with `SphereGeometry`'s UV layout, so the Earth mesh needs `rotation.y = gmst` with **no offset**.
+- **`.claude/agents/web-implementer.md`** (Sonnet; TypeScript/Three.js/Vite/FastAPI). It builds in the process-hygiene rules from Group 10: kill only by PID, use timeouts, no heredoc REPLs, never broad-kill python or node.
+- **Earth texture** (main). NASA Blue Marble by Reto Stöckli, NASA GSFC, public domain. A 3840×1920 rendition was fetched through the Wikimedia Commons API. The JPEG magic bytes and dimensions were verified and the image was viewed; the sha256 and provenance are in `webapp/frontend/public/textures/manifest.json` and `CREDITS.md`. The asset-fetch skill's helper script is not installed here, so its rules (API URL, verify, log) were followed by hand.
+- **`webapp/frontend/`** (web-implementer, 2 tasks): Vite 8 + TypeScript 7 (strict), three 0.187 and uPlot 1.6, with vitest 5. Modules:
+  - `src/math/frames.ts`: every conversion;
+  - `src/adcs/history.ts`: ring buffer and mode segments;
+  - `OrbitView.ts`: ECI scene with the textured Earth rotating with GMST, a real terminator from the Sun direction, the first-orbit ring with a trail, and the satellite with a body triad;
+  - `SatView.ts`: 3U body to scale with labelled faces, an RGB axis triad, a cyan estimate ghost, nadir/Sun/B arrows with an ECLIPSE label, and wheel bars;
+  - `Panels.ts`: parameter form from `/api/adcs/presets`, transport with a log speed slider, kick panel, readouts, mode/eclipse/event timeline, and four uPlot strips;
+  - `api.ts`, `ws.ts`, `types.ts`, `logic.ts`, `format.ts`, `theme.ts`, `viewport.ts`.
+  - Every frame goes into the history, only the newest frame is drawn per animation frame, and the charts are throttled to about 8 Hz.
+- **Tests: 68 vitest** across 4 files (frames, history, logic, format).
+  - The oracle is `tests/fixtures/make_fixtures.py`. It writes `frames_fixtures.json` from Python (`common.quaternion.to_dcm`, `common.frames.eci_to_ecef`, real `ClosedLoopSim` frames through `adcs_session.frame`). It runs in about 3 s and is deterministic.
+  - **The Earth-texture test** samples a real `THREE.SphereGeometry` mesh by nearest UV and confirms `rotation.y = gmst` at 12 ground points × 3 GMST values. Its sensitivity checks show that `−gmst` and `gmst + 90°` both fail.
+- **Server change** (main). `_FrontendFiles` serves Vite's hashed `assets/*` as immutable and everything else as `no-cache`. The browser check had shown a heuristically cached `index.html` pointing at the old bundle after a rebuild. 5 tests are in `test_static_cache.py`.
+- **Full suite: 1747 pytest passing** (287 s), plus 68 vitest. `npm run build` is clean: JS 666 kB (179 kB gzip), CSS 10 kB.
+
+**Browser check** (main, claude-in-chrome; GIF `webapp/docs/adcs_browser_check.gif`, 8 frames, 2.35 MB)
+- The run used realistic+design, 6 orbits, 10 °/s, seed 0, at 500× set (≈ 290–375× achieved, CPU-bound as measured in Group 10).
+  - Detumble, then **TRIAD init at 269 s** (the same as the golden `real_design_s0`), then **POINTING by 1.23 orbits** (golden switch at 6491 s).
+  - Steady pointing: nadir error 0.16–0.53°, dumping active, the estimate ghost overlays the body.
+  - A **+5 °/s kick about body x** drove the x wheel to 100 % of max speed (the saturation mechanism from the Group 10 review). The sim **fell back to DETUMBLE** and **re-acquired POINTING** about 1 orbit later, with nadir error back to 0.30°. The run then finished: "run complete" at t = 33322 s, with the kick panel disabled.
+  - No console errors.
+- **Fixed during the check:**
+  - The fallback marker was drawn underneath the kick marker. A fallback lands less than 1 px after its kick on a 6-orbit bar, so the fallback triangle now sits at the bottom of the marker lane. This was verified by reading the canvas pixels: the magenta dot is in rows 28–36 and the red triangle in rows 53–59.
+  - The stale-bundle caching above.
+- **Not a bug.** Chrome throttled the automation window to about 1 Hz rAF when it was behind other windows (Windows occlusion), which made some screenshots time out. A probe showed the main thread idle: 614 `setTimeout` ticks in 3 s, worst gap 10 ms, heap 7 MB.
+- The Chrome download of the GIF stayed a `.tmp` (Chrome did not finalise it, and the trailer byte was missing). Pillow decoded all 9 frames. The GIF was rebuilt from the 8 full-page frames, dropping one zoom capture.
+
+**Decisions and notes**
+- Plot strips are a 2×2 grid rather than four stacked strips, to fit a 1080p screen. They share the x range with the timeline.
+- Log axes clamp values ≤ 1e-3 to the floor, and `null` values show as gaps.
+- A `pagehide` keepalive `DELETE` frees the server session when the tab closes.
+- The presets request retries every 2 s while the server is down.
+- `vite.config.ts` uses `root: '.'`; npm scripts run in the package directory.
+- `chunkSizeWarningLimit` is 800 kB. Three.js accounts for most of the bundle; code-splitting is not worth it for a local tool.

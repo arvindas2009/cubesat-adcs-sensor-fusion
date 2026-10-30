@@ -1,0 +1,20 @@
+{
+  "earth_bluemarble_3840.jpg": {
+    "provider": "wikimedia",
+    "id": "File:Land shallow topo 2048.jpg",
+    "title": "Blue Marble: Land Surface, Shallow Water, and Shaded Topography",
+    "author": "Reto Stöckli / NASA Goddard Space Flight Center (Visible Earth)",
+    "license": "Public domain (NASA)",
+    "license_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+    "landing_page": "https://commons.wikimedia.org/wiki/File:Land_shallow_topo_2048.jpg",
+    "download_url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/91/Land_shallow_topo_2048.jpg/3840px-Land_shallow_topo_2048.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+    "fetched_via": "Wikimedia Commons API imageinfo (iiurlwidth=4096 -> 3840 px rendition)",
+    "fetched": "2026-10-30",
+    "sha256": "2259add157c46894faab34646ec1a4cb3c3bd3ca9de4753300a58899ef2fbdf6",
+    "type": "image/jpeg",
+    "bytes": 1105175,
+    "width": 3840,
+    "height": 1920,
+    "projection": "equirectangular (plate carree), longitude -180..180 left to right, north up"
+  }
+}

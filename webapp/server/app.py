@@ -27,6 +27,17 @@ _NOT_BUILT = (
 )
 
 
+class _FrontendFiles(StaticFiles):
+    """Built frontend with explicit caching: Vite's content-hashed ``assets/*`` are immutable; every
+    other file (``index.html``, textures) must be revalidated, so a rebuild is picked up on reload."""
+
+    async def get_response(self, path: str, scope):
+        resp = await super().get_response(path, scope)
+        resp.headers["Cache-Control"] = ("public, max-age=31536000, immutable"
+                                         if path.replace("\\", "/").startswith("assets/") else "no-cache")
+        return resp
+
+
 class _WsConn:
     """Adapt a Starlette ``WebSocket`` to the shape ``AdcsSession.serve`` expects."""
 
@@ -117,7 +128,7 @@ def create_app(frontend_dist: Path | None = DEFAULT_FRONTEND_DIST, max_sessions:
 
     dist = None if frontend_dist is None else Path(frontend_dist)
     if dist is not None and (dist / "index.html").is_file():
-        app.mount("/", StaticFiles(directory=dist, html=True), name="frontend")
+        app.mount("/", _FrontendFiles(directory=dist, html=True), name="frontend")
     else:
         @app.get("/", response_class=HTMLResponse)
         async def frontend_missing() -> HTMLResponse:
