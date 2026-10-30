@@ -19,14 +19,14 @@ Two linked pure-Python projects sharing an error-state EKF + quaternion core: **
 ## Commands (Windows)
 
 ```bash
-.venv/Scripts/python -m pytest -q          # all tests (~245–290 s, 1747 tests; webapp tests skip without the [web] extra)
+.venv/Scripts/python -m pytest -q          # all tests (~245–300 s, 1800 tests incl. 1 opt-in skip; webapp tests skip without the [web] extra)
 .venv/Scripts/python -m pip install -e .[web]   # after adding packages/modules ([web] = fastapi/uvicorn/httpx for webapp/)
 .venv/Scripts/python -m webapp             # browser simulator, http://127.0.0.1:8000 (serves webapp/frontend/dist)
-cd webapp/frontend && npm ci && npm run build && npm test   # frontend: build into dist/, vitest (68)
+cd webapp/frontend && npm ci && npm run build && npm test   # frontend: build into dist/, vitest (107)
 ```
 
 Python 3.14 venv at `.venv/` (fallback `py -3.12` if a wheel is missing).
 
 ## Layout
 
-`common/` (quaternion, frames, ekf — shared), `sensor_fusion/` (Project A), `adcs/` (Project B; `stepper.py` = step-by-step closed loop), `webapp/` (browser simulator: `server/` FastAPI, `frontend/` Vite+TS+Three.js); tests in `<package>/tests/`; figures in `<package>/report/figures/`.
+`common/` (quaternion, frames, ekf — shared), `sensor_fusion/` (Project A), `adcs/` (Project B; `stepper.py` = step-by-step closed loop), `webapp/` (browser simulator: `server/` FastAPI, incl. `px4_replay.py` = PX4 replay with cache in `webapp/.cache/`; `frontend/` Vite+TS+Three.js, `src/adcs/` live sim, `src/px4/` replay); tests in `<package>/tests/`; figures in `<package>/report/figures/`.

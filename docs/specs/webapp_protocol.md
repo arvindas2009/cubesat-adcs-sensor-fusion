@@ -51,6 +51,8 @@ webapp/
 | `GET /api/adcs/sessions/{id}` | | 200 `{"id", "params", "info", "status"}` | 404 |
 | `DELETE /api/adcs/sessions/{id}` | | 204 | 404 |
 
+The PX4 replay endpoints (`GET /api/px4/logs`, `POST /api/px4/replay/{log}`) and the app-wide `GZipMiddleware` are specified in `docs/specs/px4_replay.md` §2.
+
 **Creation.**
 * `POST` builds the `ClosedLoopSim` in `asyncio.to_thread`. The precompute can take seconds over 15 orbits, and the event loop must stay responsive.
 * It then immediately processes **sample 0** (`sim.step(1)`), so that a snapshot always exists. The `POST` returns once the session is ready; the frontend shows its own "preparing" spinner while it waits.

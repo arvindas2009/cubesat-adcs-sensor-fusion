@@ -65,11 +65,15 @@ sensor_fusion/ download_logs.py  loader.py  interp.py  inspect_logs.py  dead_rec
                data/    NOTES.md  (the .ulg logs are gitignored)
 adcs/          config.py  orbit.py  environment.py  dynamics.py  disturbances.py  actuators.py
                sensors.py  estimation.py  control.py  simulate.py  monte_carlo.py
-               visualize.py   3D visualizer (Group 9)
+               visualize.py   3D visualizer (Group 9)   stepper.py   step-by-step closed loop (Group 10)
                tests/
                report/  physics_figures.py  control_figures.py  estimation_figures.py  closed_loop_figures.py
                         monte_carlo_figures.py  mc_worst_runs.py  design_document.md  monte_carlo_summary.md
                         *_metrics.json  monte_carlo_{design,ideal}.json  mc_worst_runs.json  figures/
+webapp/        __main__.py   python -m webapp (browser simulator, Groups 10-12)
+               server/    app.py  schemas.py  adcs_session.py  px4_replay.py  tests/
+               frontend/  Vite + TypeScript + Three.js + uPlot: src/adcs/  src/px4/  src/math/  tests/
+               docs/      browser-check GIFs
 ```
 
 ## Conventions
@@ -86,7 +90,7 @@ pip install -e .
 python -m pytest -q
 ```
 
-If a dependency lacks a Python 3.14 wheel, use `py -3.12` for the virtual environment. The full test suite has 1436 passing tests (1388 at the Group 8 exit plus 48 visualizer tests; `PROGRESS.md`) and takes about 260 s. The Project A real-log tests skip if the `.ulg` files have not been downloaded.
+If a dependency lacks a Python 3.14 wheel, use `py -3.12` for the virtual environment. The full test suite has 1800 tests (1799 pass; 1 opt-in real-log replay test skips unless `PX4_REPLAY_REAL=1`; `PROGRESS.md`) and takes about 5 min. The `webapp` tests skip without the `[web]` extra. The Project A real-log tests skip if the `.ulg` files have not been downloaded.
 
 ## Reproducing the results
 
@@ -155,6 +159,40 @@ The animation is **time-warped**: frames are chosen so the body or the Sun moves
 - `adcs/report/figures/closed_loop_animation.mp4` (0.80 MB) and `adcs/report/figures/closed_loop_animation.gif` (1.5 MB, 10 fps, 720 px wide, converted from the MP4 with ffmpeg).
 
 ![Closed-loop animation](adcs/report/figures/closed_loop_animation.gif)
+
+## Interactive simulator
+
+A browser application (local only, bound to 127.0.0.1) with two tabs: a live CubeSat closed loop and a replay of the three pinned PX4 logs. It is a visual aid only and adds no numbers to the reports.
+
+```powershell
+.venv\Scripts\python -m pip install -e .[web]
+cd webapp\frontend; npm ci; npm run build; cd ..\..
+.venv\Scripts\python -m webapp          # http://127.0.0.1:8000
+```
+
+Node 18+ is needed for the build; the server serves `webapp/frontend/dist`. The tab is selected by the URL hash (`#adcs`, `#px4`).
+
+**ADCS tab (live).** The CubeSat closed loop runs step by step on the server (`adcs/stepper.py`, bit-identical to `run_closed_loop`) and streams frames over a WebSocket at about 30 Hz.
+
+- Parameter form: orbits (at most 15), initial rate, seed, sensors, filter, dumping, inertia scale.
+- Transport: play/pause, speed 1–2000x (the engine reaches roughly 300–600x real time on this laptop, depending on CPU state), step, reset.
+- Kicks: a Δω about a body axis, capped at 30 °/s (`assumptions.md` B-25).
+- Views: Earth (NASA Blue Marble texture, rotating with GMST, real terminator); attitude view in the local frame with the estimate ghost; timeline and live plots.
+- Browser-check GIF: `webapp/docs/adcs_browser_check.gif`.
+
+**PX4 replay tab.** Pick one of the three pinned logs. The server runs the Project A filter (`run_filter`, tuned defaults, increment 3) and the EKF2 reference once, resamples both to a 50 Hz grid and caches the result in `webapp/.cache/` (gitignored). The browser plays and scrubs it locally.
+
+- Views: drone attitude (ours solid, EKF2 as an outline ghost); 3D NED path of both; timeline with the EKF2 yaw-reset marker and the 5 s window the reports exclude.
+- Plots: attitude difference, position difference, NIS per sensor with 95 % bands, height above the start.
+- A permanent badge reads "EKF2 is a reference, not truth".
+- First load of a log took 9–30 s (measured: hover 14.1 s, aggressive 8.6 s, other 29.6 s). Cached loads took 0.15–0.6 s. The payload is 2.9–11 MB of JSON, 1.1–4.3 MB gzipped.
+- A missing `.ulg` file shows the hint `python -m sensor_fusion.download_logs`.
+- **Consistency check.** Tilt, yaw and position statistics recomputed from the served replay with the report's masks agree with `sensor_fusion/report/final_metrics_<id>.json`: hover tilt RMS 1.049° vs 1.049°, aggressive 0.371° vs 0.366°, other 0.563° vs 0.561°; yaw RMS 5.778 / 1.376 / 1.801° vs 5.778 / 1.376 / 1.800° (hover / aggressive / other). The small differences come from the 50 Hz grid versus EKF2's own sample times.
+- Browser-check GIF (all three logs loaded, played, scrubbed, reset jump):
+
+![PX4 replay browser check](webapp/docs/px4_replay_check.gif)
+
+**Tests.** `pytest` covers the server (`webapp/server/tests/`). `cd webapp\frontend; npm test` runs the frontend tests (107 vitest), including Python-generated fixtures that check the quaternion and frame conversions (ECI and NED) against `common.quaternion`.
 
 
 ## Reproducibility check

@@ -4,14 +4,17 @@ A visual aid only. REST under ``/api``, one WebSocket per ADCS session, and the 
 present) mounted at ``/`` after the API routes. Binds to localhost by default (``python -m webapp``);
 there is no authentication.
 """
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from webapp.server.adcs_session import ConnectionClosed, SessionRegistry, TooManySessions
+from webapp.server.px4_replay import CAVEAT, DOWNLOAD_HINT, LogMissing, ReplayStore, UnknownLog
 from webapp.server.schemas import SessionParams
 
 __all__ = ["create_app", "DEFAULT_FRONTEND_DIST"]
@@ -68,12 +71,14 @@ class _WsConn:
             pass
 
 
-def create_app(frontend_dist: Path | None = DEFAULT_FRONTEND_DIST, max_sessions: int = 4) -> FastAPI:
+def create_app(frontend_dist: Path | None = DEFAULT_FRONTEND_DIST, max_sessions: int = 4,
+               px4_store: ReplayStore | None = None) -> FastAPI:
     """Build the application.
 
     ``frontend_dist``: directory of the built frontend (mounted at ``/`` when it contains
     ``index.html``; otherwise ``GET /`` returns a short note). ``max_sessions``: concurrent ADCS
-    sessions; the registry is ``app.state.registry``.
+    sessions; the registry is ``app.state.registry``. ``px4_store``: the PX4 replay store
+    (``None`` -> ``ReplayStore()``; ``app.state.px4``); spec ``docs/specs/px4_replay.md`` section 2.
     """
     registry = SessionRegistry(max_sessions=max_sessions)
 
@@ -84,6 +89,8 @@ def create_app(frontend_dist: Path | None = DEFAULT_FRONTEND_DIST, max_sessions:
 
     app = FastAPI(title="ADCS browser simulator", lifespan=lifespan)
     app.state.registry = registry
+    app.state.px4 = ReplayStore() if px4_store is None else px4_store
+    app.add_middleware(GZipMiddleware, minimum_size=1024)       # HTTP only; WebSockets are untouched
 
     def _session_json(s) -> dict:
         return {"id": s.id, "params": s.params.model_dump(), "info": s.info, "status": s.status()}
@@ -125,6 +132,25 @@ def create_app(frontend_dist: Path | None = DEFAULT_FRONTEND_DIST, max_sessions:
             await websocket.close(code=4404, reason="unknown session")
             return
         await s.serve(_WsConn(websocket))
+
+    @app.get("/api/px4/logs")
+    async def px4_logs() -> dict:
+        store = app.state.px4
+        return {"logs": await asyncio.to_thread(store.list_logs), "download_hint": DOWNLOAD_HINT,
+                "caveat": CAVEAT}
+
+    @app.post("/api/px4/replay/{log}")
+    async def px4_replay(log: str) -> Response:
+        store = app.state.px4
+        try:
+            text = await asyncio.to_thread(store.get_json, log)
+        except UnknownLog:
+            return JSONResponse({"detail": f"unknown log '{log}'"}, status_code=404)
+        except LogMissing as e:
+            return JSONResponse({"detail": str(e)}, status_code=404)
+        except Exception as e:                       # loader / filter failure: report, keep serving
+            return JSONResponse({"detail": f"replay failed: {e}"}, status_code=500)
+        return Response(content=text, media_type="application/json")
 
     dist = None if frontend_dist is None else Path(frontend_dist)
     if dist is not None and (dist / "index.html").is_file():

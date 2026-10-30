@@ -21,6 +21,9 @@ export const COLORS = {
   danger: '#ff5c6c',
   wheelPos: '#2bd9b4',
   wheelNeg: '#ff8a3d',
+  // PX4 replay: our filter (teal) vs the EKF2 reference (amber).
+  ours: '#2bd9b4',
+  ekf2: '#ffb347',
 } as const;
 
 export const AXIS_COLORS: readonly string[] = [COLORS.axisX, COLORS.axisY, COLORS.axisZ];

@@ -8,20 +8,42 @@ import { Panels } from './adcs/Panels';
 import { SatView } from './adcs/SatView';
 import { History } from './adcs/history';
 import { FrameLatch, ModeTrack, Throttle, closeBanner } from './adcs/logic';
+import { ReplayPage, FOOTER_TEXT as PX4_FOOTER_TEXT } from './px4/ReplayPage';
 import { SessionSocket } from './ws';
 import type { Frame, FrameEvents, Hello, SessionParams } from './types';
 
 export const FOOTER_TEXT = 'Simulation — visual aid only; reported numbers come from adcs/report/.';
+
+type Tab = 'adcs' | 'px4';
+
+/** Header title, document title and footer (HTML) of each tab. */
+const TAB_TEXT: Record<Tab, { h1: string; doc: string; footer: string }> = {
+  adcs: {
+    h1: 'CubeSat ADCS <span class="h1-sub">live simulator</span>',
+    doc: 'CubeSat ADCS live simulator',
+    footer: FOOTER_TEXT.replace('adcs/report/', '<code>adcs/report/</code>'),
+  },
+  px4: {
+    h1: 'PX4 flight <span class="h1-sub">replay</span>',
+    doc: 'PX4 flight replay',
+    footer: PX4_FOOTER_TEXT.replace('sensor_fusion/report/', '<code>sensor_fusion/report/</code>'),
+  },
+};
+
+/** `#px4` opens the replay tab; anything else (including no hash) the ADCS tab. */
+function tabFromHash(hash: string): Tab {
+  return hash.replace(/^#/, '') === 'px4' ? 'px4' : 'adcs';
+}
 
 const HISTORY_CAPACITY = 20000;
 const CHART_INTERVAL_MS = 125; // plots and timeline refresh at about 8 Hz
 
 const SHELL = `
   <header class="app-header">
-    <h1>CubeSat ADCS <span class="h1-sub">live simulator</span></h1>
+    <h1 id="title"></h1>
     <nav class="tabs" role="tablist">
-      <button class="tab" id="tab-adcs" role="tab" aria-selected="true">ADCS</button>
-      <button class="tab" id="tab-px4" role="tab" aria-selected="false" disabled title="Available in a later release">PX4 replay</button>
+      <button class="tab" id="tab-adcs" role="tab" aria-selected="true" aria-controls="page-adcs">ADCS</button>
+      <button class="tab" id="tab-px4" role="tab" aria-selected="false" aria-controls="page-px4">PX4 replay</button>
     </nav>
   </header>
   <div id="banner" role="alert"></div>
@@ -46,6 +68,7 @@ const SHELL = `
       </div>
     </section>
   </main>
+  <div class="page-px4" id="page-px4" hidden></div>
   <div id="toasts" aria-live="polite"></div>
   <footer class="app-footer" id="footer"></footer>
 `;
@@ -64,7 +87,32 @@ function errorText(e: unknown): string {
 
 function mount(root: HTMLElement): void {
   root.innerHTML = SHELL;
-  must(root, '#footer').innerHTML = FOOTER_TEXT.replace('adcs/report/', '<code>adcs/report/</code>');
+
+  // ---- tabs: #page-adcs / #page-px4, switched by the buttons and the URL hash (#adcs / #px4) ----
+  const pageAdcs = must(root, '#page-adcs');
+  const pagePx4 = must(root, '#page-px4');
+  let adcsVisible = true; // the ADCS session keeps running while hidden; only rendering is skipped
+  let replay: ReplayPage | null = null;
+  let chartsForceOnShow = false;
+
+  function selectTab(tab: Tab, writeHash: boolean): void {
+    const text = TAB_TEXT[tab];
+    must(root, '#title').innerHTML = text.h1;
+    document.title = text.doc;
+    must(root, '#footer').innerHTML = text.footer;
+    root.dataset.tab = tab;
+    for (const t of ['adcs', 'px4'] as Tab[]) must(root, `#tab-${t}`).setAttribute('aria-selected', String(t === tab));
+    pageAdcs.hidden = tab !== 'adcs';
+    pagePx4.hidden = tab !== 'px4';
+    adcsVisible = tab === 'adcs';
+    if (adcsVisible) chartsForceOnShow = true;
+    if (tab === 'px4' && !replay) replay = new ReplayPage(pagePx4); // lazily, once, after the page is visible
+    replay?.setVisible(tab === 'px4');
+    if (writeHash && tabFromHash(location.hash) !== tab) location.hash = tab;
+  }
+  must(root, '#tab-adcs').addEventListener('click', () => selectTab('adcs', true));
+  must(root, '#tab-px4').addEventListener('click', () => selectTab('px4', true));
+  window.addEventListener('hashchange', () => selectTab(tabFromHash(location.hash), false));
 
   const history = new History(HISTORY_CAPACITY);
   const modes = new ModeTrack();
@@ -201,22 +249,32 @@ function mount(root: HTMLElement): void {
   // ---- render loop: newest frame only, charts throttled ----
 
   function loop(now: number): void {
-    const f = latch.take();
-    if (f) {
-      orbit?.update(f);
-      sat?.update(f);
-      panels.onFrame(f);
+    // A hidden ADCS tab keeps receiving frames into the history (and keeps the newest one latched) but
+    // skips all drawing; on showing the tab the newest frame and the charts are drawn at once.
+    if (adcsVisible) {
+      if (chartsForceOnShow) {
+        chartsForceOnShow = false;
+        chartsDirty = true;
+        forceCharts = true;
+      }
+      const f = latch.take();
+      if (f) {
+        orbit?.update(f);
+        sat?.update(f);
+        panels.onFrame(f);
+      }
+      if (chartsDirty && chartThrottle.shouldRun(now, forceCharts)) {
+        panels.refreshCharts(history.columns(), latestT, modes.segments(), latestEvents);
+        chartsDirty = false;
+        forceCharts = false;
+      }
+      orbit?.render();
+      sat?.render();
     }
-    if (chartsDirty && chartThrottle.shouldRun(now, forceCharts)) {
-      panels.refreshCharts(history.columns(), latestT, modes.segments(), latestEvents);
-      chartsDirty = false;
-      forceCharts = false;
-    }
-    orbit?.render();
-    sat?.render();
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
+  selectTab(tabFromHash(location.hash), false);
 
   // Free the server-side session when the tab goes away.
   window.addEventListener('pagehide', () => {

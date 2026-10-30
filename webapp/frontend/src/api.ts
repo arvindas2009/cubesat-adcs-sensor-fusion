@@ -25,7 +25,7 @@ export function describeError(status: number, body: unknown): string {
   return `HTTP ${status}`;
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     let body: unknown = null;

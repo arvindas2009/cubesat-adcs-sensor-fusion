@@ -15,7 +15,7 @@ Read this file and `docs/IMPLEMENTATION_PLAN.md` at the start of every group. Up
 | 9 Packaging + visualizer | M10, M11 | **done** |
 | 10 Browser sim: engine stepper + server | M12 | **done** |
 | 11 Browser sim: ADCS frontend | M13 | **done** |
-| 12 Browser sim: PX4 replay + docs | M14 | next |
+| 12 Browser sim: PX4 replay + docs | M14 | **done** |
 
 ## Group 1 — Foundations (M0) — done
 
@@ -434,3 +434,58 @@ All nine original groups are complete, and the Monte Carlo has since been reprod
 - The presets request retries every 2 s while the server is down.
 - `vite.config.ts` uses `root: '.'`; npm scripts run in the package directory.
 - `chunkSizeWarningLimit` is 800 kB. Three.js accounts for most of the bundle; code-splitting is not worth it for a local tool.
+
+## Group 12 — Browser sim: PX4 replay + docs (M14) — done
+
+**Delivered**
+- **Spec.** `docs/specs/px4_replay.md` (main): server module, wire format, frontend and tests. One JSON document per log, no WebSocket.
+- **`webapp/server/px4_replay.py`** (py-implementer):
+  - `build_replay` runs `run_filter` once and returns ours, EKF2 (NaN outside EKF2's own time span), the differences (computed with the `metrics` helpers), decimated NIS with per-sample χ² 95 % bands, the EKF2 reset times and the 5 s init window.
+  - `replay_to_json` writes 7 significant digits and NaN as null, vectorised: 0.09 s for the 14 k-sample hover grid.
+  - `ReplayStore` resolves a log by role, id or id prefix. The cache key is the sha256 of the cache version, id, rate, `EkfConfig`, and `.ulg` size and mtime. Writes are atomic and only one build per log runs at a time.
+  - `app.py` gained `GET /api/px4/logs`, `POST /api/px4/replay/{log}` (build in a worker thread) and `GZipMiddleware`.
+- **Server tests** (test-author): `webapp/server/tests/test_px4_replay.py`, 52 tests plus 1 opt-in real-log test (`PX4_REPLAY_REAL=1`; hover tilt RMS from the replay 1.04909° vs `compare_to_ekf2` 1.04917°).
+  - Oracles: an independent `run_filter`, the `compare_to_ekf2` arrays, scipy `Rotation`/`Slerp`, `scipy.stats.chi2`, and a synthetic figure-8 flight with a truth reference.
+  - No implementation bugs found.
+- **Frontend** (web-implementer):
+  - `src/math/ned.ts`: NED to Three.js, `N·(n, e, d) = (n, −d, e)`, a proper rotation. It is tested against `tests/fixtures/ned_fixtures.json`, written by `make_ned_fixtures.py`.
+  - `src/px4/{types,api,clock,series,DroneView,PathView,ReplayPanels,ReplayPage}.ts`.
+  - Tabs with a `#adcs` / `#px4` hash; a hidden tab skips rendering.
+  - **107 vitest** (68 + 39 new). Build: JS 698 kB (189 kB gzip).
+- **Docs** (doc-writer): README section "Interactive simulator" and the `webapp/` block in the layout, `CLAUDE.md` commands and layout, this entry.
+- **Full suite:** 1799 pytest passed, 1 skipped (the opt-in real-log replay test), exit code 0, plus 107 vitest. The summary line of the full run was cut off by the output filter, so the counts come from `pytest --collect-only` (1800) and a separate `pytest webapp -rs` run (245 passed, 1 skipped, 44.7 s); the wall time of the full run was not recorded.
+
+**Browser check** (main; GIF `webapp/docs/px4_replay_check.gif`, 10 frames, 1200×750, 0.69 MB, assembled with Pillow from the screenshots)
+- The claude-in-chrome extension was not connected, so the check ran in headless Chrome driven by `puppeteer-core` against `python -m webapp`. `puppeteer-core` is installed only in the session scratchpad, not in the repo.
+- All three logs load (2.2–3.0 s from cache) and play at 8×. Jumping to the previous EKF2 reset lands at 16.08 s, 4.21 s and 7.38 s, which are the report's reset times. Scrubbing to 60 % works.
+- Switching to the ADCS tab and back works. There were no console errors, warnings or failed requests.
+- **Fixed during the check** (main):
+  - Stale N/E labels stayed in the path view after switching logs. `disposeObject` now removes the CSS2D label elements, because three.js fires `removed` only on the removed root.
+  - The EKF2 ghost's wireframe rotors hid our drone. The ghost is now drawn as edge outlines (`EdgesGeometry`).
+
+**Measured**
+- **First builds through the API** (uncached):
+
+  | Log | Build [s] | JSON [MB] |
+  |---|---|---|
+  | hover | 14.1 | 4.6 |
+  | aggressive | 8.6 | 2.9 |
+  | other | 29.6 | 11.1 |
+
+- **Cached + gzip:** 0.23 / 0.15 / 0.61 s and 1.6 / 1.1 / 4.3 MB (hover / aggressive / other).
+- **Consistency of the replay with the report** (replay statistics computed with the report's masks vs the committed `final_metrics_<id>.json`; replay / report):
+
+  | Statistic | hover | aggressive | other |
+  |---|---|---|---|
+  | tilt RMS [°] | 1.049 / 1.049 | 0.371 / 0.366 | 0.563 / 0.561 |
+  | yaw RMS [°] | 5.778 / 5.778 | 1.376 / 1.376 | 1.801 / 1.800 |
+  | yaw mean [°] | −5.263 / −5.264 | −0.623 / −0.623 | −1.660 / −1.659 |
+  | horizontal position RMS [m] | 0.051 / 0.050 | 0.055 / 0.055 | 0.258 / 0.255 |
+  | vertical position mean [m] | 0.982 / 0.980 | −0.668 / −0.666 | −0.499 / −0.499 |
+
+  The small differences come from the 50 Hz grid versus EKF2's own sample times. EKF2 is a reference, not truth: these are differences to it, not errors.
+
+**Decisions and notes**
+- The replay adds no numbers to any report; the page footer and the permanent badge say so.
+- The replay cache is `webapp/.cache/` (gitignored). A changed `EkfConfig`, a changed `.ulg` or a new `CACHE_VERSION` recomputes it.
+- **Process note.** Subagents (and the main session once) started stray interpreters with `python -` plus a heredoc in Git Bash, where bare `python` is a launcher that opens an interactive REPL. Each was killed by PID. Rule reinforced: always run `.venv/Scripts/python <script file>`.

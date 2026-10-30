@@ -42,3 +42,20 @@ export function labelElement(text: string, color: string, extraClass = ''): HTML
   d.style.color = color;
   return d;
 }
+
+/** Free the GPU resources (geometries, materials, textures) of everything under `root`, and detach it. */
+export function disposeObject(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    // CSS2D labels: `removeFromParent` only fires 'removed' on the root, so detach their DOM nodes here.
+    const label = (o as { element?: unknown }).element;
+    if (label instanceof HTMLElement) label.remove();
+    const m = o as THREE.Mesh;
+    m.geometry?.dispose();
+    const mat = m.material as THREE.Material | THREE.Material[] | undefined;
+    for (const mm of Array.isArray(mat) ? mat : mat ? [mat] : []) {
+      (mm as THREE.MeshBasicMaterial).map?.dispose();
+      mm.dispose();
+    }
+  });
+  root.removeFromParent();
+}

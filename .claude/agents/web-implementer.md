@@ -20,6 +20,6 @@ UI quality matters: it is a mission-console visual aid. Use consistent colour ro
 - **Process hygiene.**
   - Kill only processes you started yourself, by PID (`taskkill /PID <pid> /T /F`). Never `pkill -f python`, `taskkill /IM python.exe` or `taskkill /IM node.exe`: other agents and tools share the machine.
   - Wrap long or possibly hanging commands in `timeout`.
-  - Write multi-line scripts to a file instead of a heredoc.
+  - Write multi-line scripts to a file instead of a heredoc. Never type `python -`: in Git Bash a bare `python` opens an interactive REPL and hangs; run `.venv/Scripts/python <file> < /dev/null`.
   - Stop any dev server you start before returning.
 - Finish with a short report: files created or changed, commands and their results (pass/fail counts, build output size), deviations from the spec, and open questions. No long code dumps.

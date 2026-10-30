@@ -12,6 +12,7 @@ Output: a numbered findings list, most severe first. For each: file:line, severi
 
 ## Project rules (always)
 - Repo root: `D:/Projects/Coding/ubeSat ADCS + Sensor Fusion`. Python venv at `.venv/` — run Python as `.venv/Scripts/python` (Windows).
+- **Process hygiene.** Never type `python -` or pipe a heredoc into Python: in Git Bash a bare `python` is a launcher that opens an interactive REPL and hangs. Write the script to a file in the scratchpad and run `.venv/Scripts/python <file> < /dev/null`. Wrap long runs in `timeout`. Kill only processes you started, by PID (`taskkill /PID <pid> /T /F`); never `pkill -f python` or `taskkill /IM python.exe` (other agents and tools share the machine).
 - Read `CONVENTIONS.md` and any spec file named in the task first.
 - Quaternions are scalar-first `[w, x, y, z]`, Hamilton product, unit norm, body-to-inertial. SI units.
 - It is **attitude** determination and control, never "altitude" for attitude.
