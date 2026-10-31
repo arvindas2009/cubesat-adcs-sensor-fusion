@@ -193,12 +193,15 @@ function mount(root: HTMLElement): void {
   }
 
   function connect(id: string): void {
+    let first = true; // a new session starts playing; a later hello (Reset) keeps the paused state
     const s: SessionSocket = new SessionSocket(wsUrl(id, window.location), {
       onHello: (h) => {
         if (sock !== s) return;
         panels.setPreparing(false);
         panels.setBanner(glError);
         applyHello(h);
+        if (first) s.play();
+        first = false;
       },
       onFrame: (f) => {
         if (sock === s) onFrame(f);

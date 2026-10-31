@@ -90,7 +90,7 @@ Exports (all pure; inputs are plain `number[]` or arrays of arrays, as on the wi
   * a grid plane under the body as the local horizontal;
   * OrbitControls.
 * **Panels:**
-  * **Parameter form:** built from `GET /api/adcs/presets` (defaults and constraints); field order as in protocol §1, with inline validation. "Start session" (`POST`), then the WebSocket connects. While POST is pending, show "Preparing…" (a 15-orbit build takes about 1–2 s).
+  * **Parameter form:** built from `GET /api/adcs/presets` (defaults and constraints); field order as in protocol §1, with inline validation. "Start session" (`POST`), then the WebSocket connects and, on the first `hello`, the page sends `play` (a new session starts running; Reset keeps the paused state). While POST is pending, show "Preparing…" (a 15-orbit build takes about 1–2 s).
   * **Transport:** Play/Pause; a speed slider on a log scale from 1 to 2000×, showing set vs actual speed; step +1 / +60 / +600 (enabled only while paused); Reset.
   * **Kick:** axis x/y/z, sign, magnitude in °/s (default 5, max 20), Apply. Errors come from the server and are shown as a toast. They include the 30 °/s cap from `assumptions.md` [B-25].
   * **Readouts:** t [s] and orbits; mode badge; Sunlit/Eclipse; dumping; nadir error; knowledge error; 3σ (`3 × att_sigma_deg`); rate; ω̂; wheel rpm and fraction; dipole; TRIAD init time.
