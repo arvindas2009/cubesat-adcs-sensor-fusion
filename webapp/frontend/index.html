@@ -3,8 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
-    <title>CubeSat ADCS live simulator</title>
+    <title>Attitude lab</title>
+    <!-- Apply the colour mode before first paint (no flash): stored choice, else the system preference.
+         Keep in sync with initTheme() in src/theme/index.ts. -->
+    <script>
+      (function () {
+        var t = null;
+        try {
+          var s = window.localStorage.getItem('theme');
+          if (s === 'light' || s === 'dark') t = s;
+        } catch (e) {}
+        if (!t) {
+          try {
+            t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          } catch (e) {
+            t = 'light';
+          }
+        }
+        document.documentElement.setAttribute('data-theme', t);
+        document.documentElement.style.colorScheme = t;
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

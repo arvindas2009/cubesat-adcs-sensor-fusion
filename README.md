@@ -192,7 +192,7 @@ Node 18+ is needed for the build; the server serves `webapp/frontend/dist`. The 
 
 ![PX4 replay browser check](webapp/docs/px4_replay_check.gif)
 
-**Tests.** `pytest` covers the server (`webapp/server/tests/`). `cd webapp\frontend; npm test` runs the frontend tests (107 vitest), including Python-generated fixtures that check the quaternion and frame conversions (ECI and NED) against `common.quaternion`.
+**Tests.** `pytest` covers the server (`webapp/server/tests/`). `cd webapp\frontend; npm test` runs the frontend tests (131 vitest), including Python-generated fixtures that check the quaternion and frame conversions (ECI and NED) against `common.quaternion`.
 
 
 ## Reproducibility check

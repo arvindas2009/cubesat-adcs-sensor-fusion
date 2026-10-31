@@ -22,7 +22,10 @@ import {
   validateAll,
   type FieldSpec,
 } from './logic';
-import { AXIS_COLORS, COLORS, modeColor, modeName } from './theme';
+import { chromeColors, dataColors, onThemeChange, whenFontsReady, type DataColors } from '../theme';
+import { modeName } from './theme';
+
+const FONT_FAMILY = '"Schibsted Grotesk Variable", system-ui, sans-serif';
 
 export interface PanelHandlers {
   onStart(params: SessionParams): void;
@@ -67,6 +70,7 @@ class FormPanel {
   private readonly status: HTMLElement;
   private hasSession = false;
   private preparing = false;
+  private statusFromValidation = false;
 
   constructor(root: HTMLElement, private readonly handlers: PanelHandlers) {
     const b = body(root);
@@ -75,9 +79,11 @@ class FormPanel {
     this.startBtn.type = 'button';
     this.startBtn.disabled = true;
     this.status = el('span', 'form-status', 'Loading presets…');
-    const row = el('div', 'form-actions');
-    row.append(this.startBtn, this.status);
-    b.append(this.fields, row);
+    // status text and the primary button sit at the end of the card head (saves a row)
+    const row = el('div', 'form-actions head-end');
+    row.append(this.status, this.startBtn);
+    (root.querySelector('.card-head') ?? b).append(row);
+    b.append(this.fields);
     this.startBtn.addEventListener('click', () => this.submit());
   }
 
@@ -112,6 +118,7 @@ class FormPanel {
       }
       input.name = spec.name;
       const hint = el('small', 'field-hint', spec.hint);
+      wrap.title = spec.hint; // the allowed range is a tooltip; an error shows in the card head
       this.hints.set(spec.name, hint);
       this.inputs.set(spec.name, input);
       input.addEventListener('input', () => this.validate());
@@ -119,13 +126,18 @@ class FormPanel {
       wrap.append(lab, input, hint);
       this.fields.append(wrap);
     }
-    this.status.textContent = '';
+    this.setStatus('', false);
     this.validate();
   }
 
   setPresetsFailed(message: string): void {
-    this.status.textContent = message;
-    this.status.classList.add('bad');
+    this.setStatus(message, true);
+  }
+
+  private setStatus(text: string, bad: boolean): void {
+    this.status.textContent = text;
+    this.status.title = text;
+    this.status.classList.toggle('bad', bad);
   }
 
   private raw(): Record<string, string | boolean> {
@@ -138,6 +150,7 @@ class FormPanel {
 
   private validate(): boolean {
     const v = validateAll(this.specs, this.raw());
+    let first: string | null = null;
     for (const spec of this.specs) {
       const hint = this.hints.get(spec.name);
       const input = this.inputs.get(spec.name);
@@ -147,6 +160,14 @@ class FormPanel {
       hint.classList.toggle('bad', Boolean(err));
       input.classList.toggle('invalid', Boolean(err));
       input.setAttribute('aria-invalid', String(Boolean(err)));
+      if (err && first === null) first = `${spec.label}: ${err}`;
+    }
+    if (first !== null) {
+      this.setStatus(first, true);
+      this.statusFromValidation = true;
+    } else if (this.statusFromValidation) {
+      this.setStatus('', false);
+      this.statusFromValidation = false;
     }
     this.startBtn.disabled = !v.valid || this.preparing || this.specs.length === 0;
     return v.valid;
@@ -164,8 +185,8 @@ class FormPanel {
     this.startBtn.textContent = on ? label : this.hasSession ? 'Start new session' : 'Start session';
     this.startBtn.classList.toggle('busy', on);
     for (const i of this.inputs.values()) i.disabled = on;
-    this.status.textContent = on ? 'Building the simulation…' : '';
-    this.status.classList.remove('bad');
+    this.setStatus(on ? 'Building the simulation…' : '', false);
+    this.statusFromValidation = false;
     this.validate();
   }
 
@@ -175,8 +196,7 @@ class FormPanel {
   }
 
   setError(message: string): void {
-    this.status.textContent = message;
-    this.status.classList.add('bad');
+    this.setStatus(message, true);
   }
 }
 
@@ -202,9 +222,11 @@ class TransportPanel {
     const b = body(root);
     this.playBtn = el('button', 'primary wide', 'Play');
     this.resetBtn = el('button', undefined, 'Reset');
-    this.stateText = el('span', 'transport-state');
+    this.stateText = el('span', 'chip transport-state');
+    (root.querySelector('.card-head') ?? b).append(this.stateText);
+    this.stateText.classList.add('push');
     const r1 = el('div', 'row');
-    r1.append(this.playBtn, this.resetBtn, this.stateText);
+    r1.append(this.playBtn, this.resetBtn);
 
     this.slider = el('input', 'speed-slider');
     this.slider.type = 'range';
@@ -217,17 +239,16 @@ class TransportPanel {
     const lab = el('span', 'field-label', 'Speed');
     r2.append(lab, this.slider, this.speedText);
 
-    const r3 = el('div', 'row');
-    r3.append(el('span', 'field-label', 'Step (paused)'));
+    r1.append(el('span', 'field-label grow', 'Step (paused)'));
     for (const n of [1, 60, 600]) {
       const btn = el('button', undefined, `+${n}`);
       btn.type = 'button';
       btn.title = `Advance ${n} control step${n > 1 ? 's' : ''}`;
       btn.addEventListener('click', () => this.handlers.onStep(n));
       this.stepBtns.push(btn);
-      r3.append(btn);
+      r1.append(btn);
     }
-    b.append(r1, r2, r3);
+    b.append(r1, r2);
 
     this.playBtn.type = 'button';
     this.resetBtn.type = 'button';
@@ -285,7 +306,7 @@ class TransportPanel {
     for (const b of this.stepBtns) b.disabled = !canStep;
     this.stateText.textContent = !on ? 'no session' : this.done ? 'run complete' : this.playing ? 'running' : 'paused';
     const actual = this.speedActual !== null && this.playing ? fmtSpeed(this.speedActual) : DASH;
-    this.speedText.textContent = `set ${fmtSpeed(this.speedSet)} · actual ${actual}`;
+    this.speedText.textContent = `set ${fmtSpeed(this.speedSet)} / actual ${actual}`;
     if (!this.slider.matches(':active')) this.slider.value = String(Math.round(speedToSlider(this.speedSet)));
   }
 }
@@ -310,7 +331,7 @@ class KickPanel {
     for (const a of ['x', 'y', 'z'] as Axis[]) {
       const btn = el('button', undefined, a);
       btn.type = 'button';
-      btn.style.setProperty('--seg-color', AXIS_COLORS[['x', 'y', 'z'].indexOf(a)]);
+      btn.style.setProperty('--seg-color', `var(--axis-${a})`); // light / dark value of the axis role
       btn.addEventListener('click', () => {
         this.axis = a;
         this.refresh();
@@ -343,8 +364,9 @@ class KickPanel {
     this.apply = el('button', 'kick-apply', 'Apply kick');
     this.apply.type = 'button';
     row.append(seg, sgn, this.mag, el('span', 'unit', '°/s'), this.apply);
-    this.err = el('small', 'field-hint', `Body-axis rate step, 0 – ${KICK_MAX_DEG_S} °/s. The server caps total rate at 30 °/s.`);
-    b.append(row, this.err);
+    this.err = el('span', 'card-sub', `Body-axis rate step, 0 – ${KICK_MAX_DEG_S} °/s. The server caps total rate at 30 °/s.`);
+    (root.querySelector('.card-head') ?? b).append(this.err);
+    b.append(row);
     this.apply.addEventListener('click', () => this.submit());
     this.mag.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.submit();
@@ -378,6 +400,7 @@ class KickPanel {
 
 class Readouts {
   private readonly vals = new Map<string, HTMLElement>();
+  private readonly base = new Map<string, string>(); // initial class of each value element
   private readonly cache = new Map<string, string>();
   private readonly badge: HTMLElement;
   private readonly light: HTMLElement;
@@ -385,33 +408,43 @@ class Readouts {
   private eclipseText = DASH;
 
   constructor(root: HTMLElement) {
+    const pills = el('div', 'ro-pills');
     const grid = el('div', 'readout-grid');
-    body(root).append(grid);
-    const add = (key: string, label: string, wide = false): HTMLElement => {
+    body(root).append(pills, grid);
+    const pill = (key: string, cls: string, title: string): HTMLElement => {
+      const e = el('span', cls, DASH);
+      e.title = title;
+      pills.append(e);
+      this.vals.set(key, e);
+      this.base.set(key, cls);
+      return e;
+    };
+    this.badge = pill('mode', 'readout-value badge', 'Control mode');
+    this.light = pill('light', 'readout-value pill-state', 'Illumination');
+    this.dump = pill('dump', 'readout-value pill-state', 'Momentum dumping');
+    const add = (key: string, label: string, title?: string, wide = false): void => {
       const lab = el('span', 'readout-label', label);
+      if (title) lab.title = title;
       const val = el('span', 'readout-value', DASH);
       const cell = el('div', `ro${wide ? ' wide' : ''}`);
       cell.append(lab, val);
       grid.append(cell);
       this.vals.set(key, val);
-      return val;
+      this.base.set(key, 'readout-value');
     };
     add('t', 't [s]');
     add('orbit', 'orbits');
-    this.badge = add('mode', 'mode');
-    this.light = add('light', 'illumination');
-    this.dump = add('dump', 'dumping');
     add('triad', 'TRIAD init [s]');
-    add('nadir', 'nadir err [°]');
-    add('estNadir', 'est. nadir err [°]');
-    add('know', 'knowledge err [°]');
-    add('sigma3', '3σ [°]');
-    add('rate', 'rate |ω| [°/s]');
-    add('eclipse', 'eclipse [% of run]');
-    add('w', 'ω̂ est. [°/s]', true);
-    add('wheel', 'wheels [rpm]', true);
-    add('wheelFrac', 'wheel speed [% of max]');
-    add('m', 'dipole m [A·m²]', true);
+    add('nadir', 'nadir err [°]', 'Nadir pointing error');
+    add('estNadir', 'est. nadir [°]', 'Estimated nadir pointing error');
+    add('know', 'knowledge [°]', 'Attitude knowledge error');
+    add('sigma3', '3σ [°]', '3 × the filter attitude sigma');
+    add('rate', 'rate [°/s]', 'Body rate |ω|');
+    add('eclipse', 'eclipse [% run]', 'Share of the run spent in eclipse');
+    add('wheelFrac', 'wheels [% max]', 'Wheel speed as a share of the maximum');
+    add('w', 'ω̂ est. [°/s]', 'Estimated body rate', true);
+    add('wheel', 'wheels [rpm]', undefined, true);
+    add('m', 'dipole m [A·m²]', undefined, true);
   }
 
   setInfo(info: Info): void {
@@ -447,25 +480,25 @@ class Readouts {
       this.badge.textContent = modeTxt;
       this.badge.className = `readout-value badge ${f.mode === 1 ? 'pointing' : 'detumble'}`;
     }
-    const lightTxt = f.lit ? 'SUNLIT' : 'ECLIPSE';
+    const lightTxt = f.lit ? 'Sunlit' : 'Eclipse';
     if (this.cache.get('light') !== lightTxt) {
       this.cache.set('light', lightTxt);
       this.light.textContent = lightTxt;
-      this.light.className = `readout-value ${f.lit ? 'lit' : 'eclipsed'}`;
+      this.light.className = `readout-value pill-state ${f.lit ? 'lit' : 'eclipsed'}`;
     }
-    const dumpTxt = f.dump ? 'ACTIVE' : 'off';
+    const dumpTxt = f.dump ? 'dumping: active' : 'dumping: off';
     if (this.cache.get('dump') !== dumpTxt) {
       this.cache.set('dump', dumpTxt);
       this.dump.textContent = dumpTxt;
-      this.dump.className = `readout-value ${f.dump ? 'dump-on' : 'dim'}`;
+      this.dump.className = `readout-value pill-state ${f.dump ? 'dump-on' : 'dim'}`;
     }
   }
 
   clear(): void {
     this.cache.clear();
-    for (const v of this.vals.values()) {
+    for (const [k, v] of this.vals) {
       v.textContent = DASH;
-      v.className = 'readout-value';
+      v.className = this.base.get(k) ?? 'readout-value';
     }
   }
 }
@@ -510,10 +543,12 @@ class Timeline {
     if (!g || this.w < 2) return;
     g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     g.clearRect(0, 0, this.w, this.h);
-    g.font = '10px system-ui, sans-serif';
+    const c = chromeColors(); // the active mode's card / band / marker colours
+    const d = dataColors();
+    g.font = `12px ${FONT_FAMILY}`;
     g.textBaseline = 'middle';
     const x0 = 12;
-    const x1 = this.w - 12;
+    const x1 = this.w - 42; // room at the right for the unit label after the last tick
     const bandTop = 18;
     const bandBot = Math.max(bandTop + 20, this.h - 16);
     const info = this.info;
@@ -523,23 +558,23 @@ class Timeline {
     const swatch = (color: string, label: string) => {
       g.fillStyle = color;
       g.fillRect(lx, 4, 9, 9);
-      g.fillStyle = COLORS.dim;
+      g.fillStyle = c.dim;
       g.textAlign = 'left';
       g.fillText(label, lx + 13, 9);
       lx += 13 + g.measureText(label).width + 14;
     };
-    swatch('#0a0f1c', 'eclipse');
-    swatch(COLORS.detumble, 'detumble');
-    swatch(COLORS.pointing, 'pointing');
-    swatch(COLORS.estimate, 'TRIAD init');
-    swatch('#e6ebf5', 'switch');
-    swatch(COLORS.danger, 'fallback');
-    swatch(COLORS.kick, 'kick');
+    swatch(c.eclipse, 'eclipse');
+    swatch(d.detumble, 'detumble');
+    swatch(d.pointing, 'pointing');
+    swatch(d.estimate, 'TRIAD init');
+    swatch(c.marker, 'switch');
+    swatch(d.danger, 'fallback');
+    swatch(d.kick, 'kick');
 
     // band background
-    g.fillStyle = '#0f1729';
+    g.fillStyle = c.band;
     g.fillRect(x0, bandTop, x1 - x0, bandBot - bandTop);
-    g.strokeStyle = COLORS.border;
+    g.strokeStyle = c.bandEdge;
     g.lineWidth = 1;
     g.strokeRect(x0 + 0.5, bandTop + 0.5, x1 - x0 - 1, bandBot - bandTop - 1);
     if (!info) return;
@@ -548,15 +583,15 @@ class Timeline {
     // eclipse bands (darker, with a hairline edge so they read on the dark panel)
     for (const [a, b] of info.eclipses_s) {
       const r = intervalRect(a, b, tEnd, x0, x1, 2);
-      g.fillStyle = COLORS.eclipse;
+      g.fillStyle = c.eclipse;
       g.fillRect(r.x, bandTop + 1, r.w, bandBot - bandTop - 2);
-      g.strokeStyle = '#2a3552';
+      g.strokeStyle = c.eclipseEdge;
       g.strokeRect(r.x + 0.5, bandTop + 1.5, Math.max(1, r.w - 1), bandBot - bandTop - 3);
     }
 
     // orbit ticks
-    g.fillStyle = COLORS.dim;
-    g.strokeStyle = '#26324d';
+    g.fillStyle = c.dim;
+    g.strokeStyle = c.tick;
     for (const tk of orbitTicks(tEnd, info.period_s)) {
       const x = Math.round(timeToX(tk.t, tEnd, x0, x1)) + 0.5;
       g.beginPath();
@@ -567,13 +602,13 @@ class Timeline {
       g.fillText(`${tk.n}`, x, bandBot + 10);
     }
     g.textAlign = 'left';
-    g.fillText('orbit', x0, bandBot + 10);
+    g.fillText('orbit', x1 + 12, bandBot + 10);
 
     // mode strip along the bottom of the band
     const stripH = 7;
     for (const s of this.last.segments) {
       const r = intervalRect(s.t0, s.t1, tEnd, x0, x1, 1);
-      g.fillStyle = modeColor(s.mode);
+      g.fillStyle = s.mode === 1 ? d.pointing : d.detumble;
       g.fillRect(r.x, bandBot - stripH - 1, r.w, stripH);
     }
 
@@ -592,12 +627,12 @@ class Timeline {
       return x;
     };
     if (ev) {
-      for (const t of ev.switch_times) vline(t, '#e6ebf5');
+      for (const t of ev.switch_times) vline(t, c.marker);
       for (const t of ev.fallback_times) {
         // Triangle at the bottom of the lane: a fallback usually lands < 1 px after its kick,
         // whose dot sits at the top, so both stay visible.
-        const x = vline(t, COLORS.danger);
-        g.fillStyle = COLORS.danger;
+        const x = vline(t, d.danger);
+        g.fillStyle = d.danger;
         g.beginPath();
         g.moveTo(x - 4, markBot);
         g.lineTo(x + 4, markBot);
@@ -605,15 +640,15 @@ class Timeline {
         g.fill();
       }
       for (const k of ev.kicks) {
-        const x = vline(k.t, COLORS.kick);
-        g.fillStyle = COLORS.kick;
+        const x = vline(k.t, d.kick);
+        g.fillStyle = d.kick;
         g.beginPath();
         g.arc(x, markTop + 3, 3, 0, 2 * Math.PI);
         g.fill();
       }
       if (ev.t_init !== null) {
-        const x = vline(ev.t_init, COLORS.estimate);
-        g.fillStyle = COLORS.estimate;
+        const x = vline(ev.t_init, d.estimate);
+        g.fillStyle = d.estimate;
         g.beginPath();
         g.moveTo(x, markTop + 1);
         g.lineTo(x + 4, markTop + 5);
@@ -626,7 +661,7 @@ class Timeline {
 
     // cursor
     const cx = Math.round(timeToX(this.last.t, tEnd, x0, x1)) + 0.5;
-    g.strokeStyle = '#ffffff';
+    g.strokeStyle = c.cursor;
     g.lineWidth = 1.5;
     g.beginPath();
     g.moveTo(cx, bandTop - 3);
@@ -641,7 +676,7 @@ class Timeline {
 interface SeriesSpec {
   label: string;
   col: number; // index into History.columns()
-  color: string;
+  color: keyof DataColors; // role; resolved against the active mode when the chart is built
   dash?: number[];
   fmt: (v: number) => string;
 }
@@ -660,31 +695,31 @@ const PLOTS: PlotSpec[] = [
     title: 'Nadir pointing error [°]',
     log: true,
     series: [
-      { label: 'true', col: 1, color: COLORS.nadir, fmt: fmtAngle },
-      { label: 'estimated', col: 2, color: COLORS.estimate, dash: [6, 4], fmt: fmtAngle },
+      { label: 'true', col: 1, color: 'nadir', fmt: fmtAngle },
+      { label: 'estimated', col: 2, color: 'estimate', dash: [6, 4], fmt: fmtAngle },
     ],
   },
   {
     title: 'Knowledge error and 3σ [°]',
     log: true,
     series: [
-      { label: 'knowledge err', col: 3, color: COLORS.estimate, fmt: fmtAngle },
-      { label: '3σ', col: 4, color: '#7fb9c2', dash: [6, 4], fmt: fmtAngle },
+      { label: 'knowledge error', col: 3, color: 'estimate', fmt: fmtAngle },
+      { label: '3σ', col: 4, color: 'sigma3', dash: [6, 4], fmt: fmtAngle },
     ],
   },
   {
     title: 'Body rate [°/s]',
     log: true,
     thresholds: true,
-    series: [{ label: '|ω|', col: 5, color: COLORS.nadir, fmt: (v) => fmtFixed(v, 4) }],
+    series: [{ label: '|ω|', col: 5, color: 'nadir', fmt: (v) => fmtFixed(v, 4) }],
   },
   {
     title: 'Wheel speeds [rpm]',
     log: false,
     series: [
-      { label: 'x', col: 6, color: COLORS.axisX, fmt: (v) => v.toFixed(0) },
-      { label: 'y', col: 7, color: COLORS.axisY, fmt: (v) => v.toFixed(0) },
-      { label: 'z', col: 8, color: COLORS.axisZ, fmt: (v) => v.toFixed(0) },
+      { label: 'x', col: 6, color: 'axisX', fmt: (v) => v.toFixed(0) },
+      { label: 'y', col: 7, color: 'axisY', fmt: (v) => v.toFixed(0) },
+      { label: 'z', col: 8, color: 'axisZ', fmt: (v) => v.toFixed(0) },
     ],
   },
 ];
@@ -699,13 +734,28 @@ class PlotStrip {
   private readonly host = el('div', 'plot-host');
   private u: uPlot | null = null;
   private info: Info | null = null;
+  private lastCols: Columns | null = null;
   private readonly spec: PlotSpec;
 
   constructor(root: HTMLElement, spec: PlotSpec) {
     this.spec = spec;
-    root.append(el('h2', undefined, spec.title), this.host);
+    const head = el('div', 'card-head');
+    head.append(el('h2', undefined, spec.title));
+    root.append(head, this.host);
     this.build();
     new ResizeObserver(() => this.resize()).observe(this.host);
+  }
+
+  /** Mode change: rebuild the chart with the new axis / grid / series colours and refill it from the last data. */
+  rebuild(): void {
+    this.u?.destroy();
+    this.u = null;
+    this.build();
+    if (this.lastCols) this.setData(this.lastCols);
+  }
+
+  redraw(): void {
+    this.u?.redraw();
   }
 
   setInfo(info: Info | null): void {
@@ -715,16 +765,19 @@ class PlotStrip {
 
   private thresholds(): { v: number; color: string; label: string }[] {
     if (!this.spec.thresholds || !this.info) return [];
+    const d = dataColors();
     return [
-      { v: this.info.detumble_threshold_deg_s, color: COLORS.detumble, label: `detumble ${this.info.detumble_threshold_deg_s} °/s` },
-      { v: this.info.safe_rate_deg_s, color: COLORS.danger, label: `safe rate ${this.info.safe_rate_deg_s} °/s` },
+      { v: this.info.detumble_threshold_deg_s, color: d.detumble, label: `detumble ${this.info.detumble_threshold_deg_s} °/s` },
+      { v: this.info.safe_rate_deg_s, color: d.danger, label: `safe rate ${this.info.safe_rate_deg_s} °/s` },
     ];
   }
 
   private build(): void {
     const spec = this.spec;
-    const mono = '11px ui-monospace, "Cascadia Mono", Consolas, monospace';
-    const axisBase = { stroke: COLORS.dim, grid: { stroke: '#16213a', width: 1 }, ticks: { stroke: '#26324d', width: 1 }, font: mono };
+    const c = chromeColors();
+    const d = dataColors();
+    // axis text dim, grid a faint tint of the card's block colour, ticks hidden (spec §3)
+    const axisBase = { stroke: c.dim, grid: { stroke: c.grid, width: 1 }, ticks: { show: false }, font: `12px ${FONT_FAMILY}` };
     const opts: uPlot.Options = {
       width: Math.max(100, this.host.clientWidth),
       height: Math.max(80, this.host.clientHeight - 22),
@@ -751,15 +804,15 @@ class PlotStrip {
             },
       },
       axes: [
-        { ...axisBase, size: 26, values: (_u, splits) => splits.map(tickLabel) },
-        { ...axisBase, size: 58, values: (_u, splits) => splits.map((v) => (v === null ? '' : tickLabel(v))) },
+        { ...axisBase, size: 24, values: (_u, splits) => splits.map(tickLabel) },
+        { ...axisBase, size: 54, values: (_u, splits) => splits.map((v) => (v === null ? '' : tickLabel(v))) },
       ],
       series: [
         { label: 't [s]', value: (_u, v) => (v === null || v === undefined ? DASH : `${v.toFixed(0)} s`) },
         ...spec.series.map<uPlot.Series>((s) => ({
           label: s.label,
-          stroke: s.color,
-          width: 1.5,
+          stroke: d[s.color],
+          width: 2,
           dash: s.dash,
           spanGaps: false,
           points: { show: false },
@@ -779,7 +832,7 @@ class PlotStrip {
             ctx.clip();
             ctx.setLineDash([6 * dpr, 4 * dpr]);
             ctx.lineWidth = dpr;
-            ctx.font = `${10 * dpr}px system-ui, sans-serif`;
+            ctx.font = `${11 * dpr}px ${FONT_FAMILY}`;
             ctx.textBaseline = 'bottom';
             ctx.textAlign = 'left';
             for (const t of th) {
@@ -809,6 +862,7 @@ class PlotStrip {
   }
 
   setData(cols: Columns): void {
+    this.lastCols = cols;
     if (!this.u) return;
     const t = cols[0] as number[];
     const rest = this.spec.series.map((s) => {
@@ -841,6 +895,16 @@ export class Panels {
     this.readouts = new Readouts(roots.readouts);
     this.timeline = new Timeline(roots.timeline);
     this.plots = roots.plots.map((r, i) => new PlotStrip(r, PLOTS[i]));
+    // Mode change: charts are rebuilt with the new palette from the stored data (no reload, no lost history).
+    onThemeChange(() => {
+      for (const p of this.plots) p.rebuild();
+      this.timeline.draw();
+    });
+    // Canvas text drawn before the web font arrived used the fallback font.
+    whenFontsReady(() => {
+      for (const p of this.plots) p.redraw();
+      this.timeline.draw();
+    });
   }
 
   setPresets(p: Presets): void {

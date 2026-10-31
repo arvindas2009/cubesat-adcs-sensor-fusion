@@ -1,6 +1,7 @@
 // App bootstrap for the ADCS page: renders the shell, creates the two 3D views and the panels, and
 // wires the session flow (presets -> POST -> WebSocket). The page is a visual aid only: every number
 // shown comes from server frames (docs/specs/webapp_protocol.md).
+import '@fontsource-variable/schibsted-grotesk';
 import './style.css';
 import { ApiError, createSession, deleteSession, getPresets, wsUrl } from './api';
 import { OrbitView } from './adcs/OrbitView';
@@ -10,22 +11,21 @@ import { History } from './adcs/history';
 import { FrameLatch, ModeTrack, Throttle, closeBanner } from './adcs/logic';
 import { ReplayPage, FOOTER_TEXT as PX4_FOOTER_TEXT } from './px4/ReplayPage';
 import { SessionSocket } from './ws';
+import { currentTheme, initTheme, onThemeChange, otherTheme, toggleTheme } from './theme';
 import type { Frame, FrameEvents, Hello, SessionParams } from './types';
 
 export const FOOTER_TEXT = 'Simulation — visual aid only; reported numbers come from adcs/report/.';
 
 type Tab = 'adcs' | 'px4';
 
-/** Header title, document title and footer (HTML) of each tab. */
-const TAB_TEXT: Record<Tab, { h1: string; doc: string; footer: string }> = {
+/** Document title and footer (HTML) of each tab; the header title is "Attitude lab" on both. */
+const TAB_TEXT: Record<Tab, { doc: string; footer: string }> = {
   adcs: {
-    h1: 'CubeSat ADCS <span class="h1-sub">live simulator</span>',
-    doc: 'CubeSat ADCS live simulator',
+    doc: 'Attitude lab: CubeSat ADCS live simulator',
     footer: FOOTER_TEXT.replace('adcs/report/', '<code>adcs/report/</code>'),
   },
   px4: {
-    h1: 'PX4 flight <span class="h1-sub">replay</span>',
-    doc: 'PX4 flight replay',
+    doc: 'Attitude lab: PX4 flight replay',
     footer: PX4_FOOTER_TEXT.replace('sensor_fusion/report/', '<code>sensor_fusion/report/</code>'),
   },
 };
@@ -40,25 +40,31 @@ const CHART_INTERVAL_MS = 125; // plots and timeline refresh at about 8 Hz
 
 const SHELL = `
   <header class="app-header">
-    <h1 id="title"></h1>
-    <nav class="tabs" role="tablist">
+    <h1 id="title">Attitude lab</h1>
+    <div class="hdr-art" aria-hidden="true"><span class="shape s-sun"></span><span class="shape s-pink"></span><span class="shape s-mint"></span></div>
+    <nav class="tabs" role="tablist" aria-label="Instrument">
       <button class="tab" id="tab-adcs" role="tab" aria-selected="true" aria-controls="page-adcs">ADCS</button>
       <button class="tab" id="tab-px4" role="tab" aria-selected="false" aria-controls="page-px4">PX4 replay</button>
     </nav>
+    <button class="theme-toggle" id="theme-toggle" type="button"><span class="theme-ico" aria-hidden="true"></span><span id="theme-label">Dark</span></button>
   </header>
   <div id="banner" role="alert"></div>
   <main class="layout" id="page-adcs">
     <section id="views">
-      <div class="panel viewport" id="orbit-view"><h2>Orbit (ECI)</h2></div>
-      <div class="panel viewport" id="sat-view"><h2>Attitude (local frame, zenith up)</h2></div>
+      <div class="panel viewport" id="orbit-view"><div class="card-head"><h2>Orbit</h2><span class="card-sub">Earth-centred inertial frame</span></div></div>
+      <div class="panel viewport" id="sat-view"><div class="card-head"><h2>Attitude</h2><span class="card-sub">local frame, zenith up</span></div></div>
     </section>
     <aside id="side">
-      <div class="panel" id="form"><h2>Session</h2><div class="panel-body"></div></div>
-      <div class="panel" id="transport"><h2>Transport</h2><div class="panel-body"></div></div>
-      <div class="panel" id="kick"><h2>Kick</h2><div class="panel-body"></div></div>
-      <div class="panel" id="readouts"><h2>Readouts</h2><div class="panel-body"></div></div>
+      <div class="block block-sun">
+        <div class="panel" id="form"><div class="card-head"><h2>Session</h2></div><div class="panel-body"></div></div>
+        <div class="panel" id="transport"><div class="card-head"><h2>Transport</h2></div><div class="panel-body"></div></div>
+        <div class="panel" id="kick"><div class="card-head"><h2>Kick</h2></div><div class="panel-body"></div></div>
+      </div>
+      <div class="block block-peri">
+        <div class="panel" id="readouts"><div class="card-head"><h2>Readouts</h2></div><div class="panel-body"></div></div>
+      </div>
     </aside>
-    <section id="bottom">
+    <section id="bottom" class="block block-mint">
       <div class="panel" id="timeline"></div>
       <div id="plots">
         <div class="panel" id="plot-1"></div>
@@ -86,7 +92,23 @@ function errorText(e: unknown): string {
 }
 
 function mount(root: HTMLElement): void {
+  initTheme(); // the inline script in index.html already set data-theme; this re-reads the same sources
   root.innerHTML = SHELL;
+
+  // ---- theme toggle: the button shows the mode it switches to ----
+  const themeBtn = must<HTMLButtonElement>(root, '#theme-toggle');
+  function syncThemeButton(): void {
+    const next = otherTheme(currentTheme());
+    must(root, '#theme-label').textContent = next === 'dark' ? 'Dark' : 'Light';
+    themeBtn.setAttribute('aria-label', `Switch to ${next} mode`);
+    themeBtn.title = `Switch to ${next} mode`;
+  }
+  syncThemeButton();
+  themeBtn.addEventListener('click', () => {
+    toggleTheme();
+    syncThemeButton();
+  });
+  onThemeChange(syncThemeButton);
 
   // ---- tabs: #page-adcs / #page-px4, switched by the buttons and the URL hash (#adcs / #px4) ----
   const pageAdcs = must(root, '#page-adcs');
@@ -97,7 +119,6 @@ function mount(root: HTMLElement): void {
 
   function selectTab(tab: Tab, writeHash: boolean): void {
     const text = TAB_TEXT[tab];
-    must(root, '#title').innerHTML = text.h1;
     document.title = text.doc;
     must(root, '#footer').innerHTML = text.footer;
     root.dataset.tab = tab;

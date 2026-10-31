@@ -1,36 +1,40 @@
-// Colour roles (docs/specs/frontend.md §2). Mirrors the CSS variables in style.css; keep in sync.
+// Colour roles (docs/specs/frontend.md §2, docs/specs/ui_theme.md §1).
+// `COLORS` holds the roles as they look on the 3D "screens", which are dark plum in both modes, so these
+// are the dark-mode values of src/theme/palette.ts. Everything that sits on a light or dark card (plots,
+// timeline, DOM) must read the active palette instead: `dataColors()` / `chromeColors()` from '../theme'.
+import { currentTheme, dataColors } from '../theme';
+import { SCREEN } from '../theme/palette';
+
+const D = dataColors('dark');
+
 export const COLORS = {
-  bg: '#070b14',
-  panel: '#0c1220',
-  raised: '#131b2e',
-  border: '#1f2a42',
-  text: '#d5dcea',
-  dim: '#7d8aa5',
-  axisX: '#ff5a5a',
-  axisY: '#4fd96b',
-  axisZ: '#4a8dff',
-  estimate: '#2fd6e6',
-  sun: '#ffd23f',
-  sunOff: '#6b7385',
-  field: '#a77bff',
-  nadir: '#e6ebf5',
-  detumble: '#ffb020',
-  pointing: '#35d07f',
-  eclipse: '#02040a',
-  kick: '#ff3fb4',
-  danger: '#ff5c6c',
-  wheelPos: '#2bd9b4',
-  wheelNeg: '#ff8a3d',
-  // PX4 replay: our filter (teal) vs the EKF2 reference (amber).
-  ours: '#2bd9b4',
-  ekf2: '#ffb347',
+  text: SCREEN.text,
+  dim: SCREEN.textDim,
+  axisX: D.axisX,
+  axisY: D.axisY,
+  axisZ: D.axisZ,
+  estimate: D.estimate,
+  sun: D.sun,
+  sunOff: '#7E6C7C',
+  field: D.field,
+  nadir: D.nadir,
+  detumble: D.detumble,
+  pointing: D.pointing,
+  kick: D.kick,
+  danger: D.danger,
+  wheelPos: '#2BD9B4',
+  wheelNeg: '#FF8A3D',
+  // PX4 replay: our filter vs the EKF2 reference.
+  ours: D.ours,
+  ekf2: D.ekf2,
 } as const;
 
 export const AXIS_COLORS: readonly string[] = [COLORS.axisX, COLORS.axisY, COLORS.axisZ];
 
-/** DETUMBLE (mode 0) amber, POINTING (mode 1) green. */
+/** DETUMBLE (mode 0) amber, POINTING (mode 1) green, in the active mode's data colours (for plots and timeline). */
 export function modeColor(mode: number): string {
-  return mode === 1 ? COLORS.pointing : COLORS.detumble;
+  const c = dataColors(currentTheme());
+  return mode === 1 ? c.pointing : c.detumble;
 }
 
 export function modeName(mode: number): string {

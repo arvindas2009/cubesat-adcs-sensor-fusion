@@ -3,6 +3,7 @@
 // translucent amber wireframe ghost (hidden while its quaternion is null). Both are oriented with
 // bodyNedToWorld (math/ned.ts); north is world +X, east world +Z, up world +Y.
 import * as THREE from 'three';
+import { SCREEN } from '../theme/palette';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { bodyNedToWorld } from '../math/ned';
@@ -86,7 +87,7 @@ export class DroneView {
     this.scene.add(fill);
 
     // Local horizontal with north (world +X) and east (world +Z) marked.
-    const grid = new THREE.GridHelper(8, 16, 0x2e4068, 0x1a2640);
+    const grid = new THREE.GridHelper(8, 16, new THREE.Color(SCREEN.gridMajor), new THREE.Color(SCREEN.gridMinor));
     grid.position.y = GRID_Y;
     this.scene.add(grid);
     for (const [text, pos] of [

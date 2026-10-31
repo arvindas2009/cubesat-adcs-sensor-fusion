@@ -3,6 +3,7 @@
 // part up to the current time bright (the same geometry with a draw range). Null EKF2 samples split the
 // line, so nothing is drawn through a gap. The camera fits both paths when a replay is loaded.
 import * as THREE from 'three';
+import { SCREEN } from '../theme/palette';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { nedToWorld } from '../math/ned';
@@ -117,7 +118,7 @@ export class PathView {
     // Ground grid at the height of the first sample, with N (+X) and E (+Z) marked.
     const step = niceStep(extent / 8);
     const half = step * (Math.ceil(extent / 2 / step) + 1);
-    const grid = new THREE.GridHelper(half * 2, Math.round((half * 2) / step), 0x2e4068, 0x1a2640);
+    const grid = new THREE.GridHelper(half * 2, Math.round((half * 2) / step), new THREE.Color(SCREEN.gridMajor), new THREE.Color(SCREEN.gridMinor));
     grid.position.set(Math.round(center.x / step) * step, groundY, Math.round(center.z / step) * step);
     group.add(grid);
     for (const [text, pos] of [

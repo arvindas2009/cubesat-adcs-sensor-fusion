@@ -3,12 +3,12 @@
 // (which only runs while the tab is visible). The replay is one JSON document from the server; the browser
 // plays and scrubs it locally and does no physics.
 import { ApiError } from '../api';
-import { DASH, fmtFixed } from '../adcs/format';
 import { DroneView } from './DroneView';
 import { PathView } from './PathView';
 import { ReplayPanels } from './ReplayPanels';
 import { PlaybackClock } from './clock';
 import { getLogs, loadReplay } from './api';
+import { metaChips } from './meta';
 import { nextReset, prevReset } from './series';
 import type { Replay } from './types';
 
@@ -22,20 +22,24 @@ const MAX_DT_S = 0.25; // a throttled background tab must not make the replay ju
 const SHELL = `
   <div class="px4-head">
     <span class="caveat-badge" id="px4-caveat" role="note"></span>
-    <span class="px4-meta" id="px4-meta">No log loaded</span>
+    <div class="px4-meta" id="px4-meta"></div>
   </div>
   <div class="px4-banner" id="px4-banner" role="alert"></div>
   <main class="layout px4-layout">
     <section class="px4-views">
-      <div class="panel viewport" id="px4-drone"><h2>Attitude (body FRD to NED; ours solid, EKF2 ghost)</h2></div>
-      <div class="panel viewport" id="px4-path"><h2>Path (NED, 1 unit = 1 m)</h2></div>
+      <div class="panel viewport" id="px4-drone"><div class="card-head"><h2>Drone attitude</h2><span class="card-sub">body FRD → NED; ours solid, EKF2 outline</span></div></div>
+      <div class="panel viewport" id="px4-path"><div class="card-head"><h2>Path</h2><span class="card-sub">NED, 1 unit = 1 m</span></div></div>
     </section>
     <aside class="px4-side">
-      <div class="panel" id="px4-log"><h2>Log</h2><div class="panel-body"></div></div>
-      <div class="panel" id="px4-transport"><h2>Transport</h2><div class="panel-body"></div></div>
-      <div class="panel" id="px4-readouts"><h2>Readouts</h2><div class="panel-body"></div></div>
+      <div class="block block-sun">
+        <div class="panel" id="px4-log"><div class="card-head"><h2>Log</h2></div><div class="panel-body"></div></div>
+        <div class="panel" id="px4-transport"><div class="card-head"><h2>Transport</h2></div><div class="panel-body"></div></div>
+      </div>
+      <div class="block block-peri">
+        <div class="panel" id="px4-readouts"><div class="card-head"><h2>Readouts</h2></div><div class="panel-body"></div></div>
+      </div>
     </aside>
-    <section class="px4-bottom">
+    <section class="px4-bottom block block-mint">
       <div class="panel" id="px4-timeline"></div>
       <div class="px4-plots">
         <div class="panel" id="px4-plot-1"></div>
@@ -91,6 +95,7 @@ export class ReplayPage {
     this.meta = must(root, '#px4-meta');
     this.banner = must(root, '#px4-banner');
     this.caveat.textContent = CAVEAT;
+    this.setMeta(['No log loaded']);
 
     // WebGL may be unavailable (blocked GPU, headless): keep the panels and plots working and say so.
     try {
@@ -197,6 +202,18 @@ export class ReplayPage {
 
   // ---------------------------------------------------------------- data flow
 
+  /** The header pills: one small pill per fact instead of one middle-dot string. */
+  private setMeta(chips: string[]): void {
+    this.meta.replaceChildren(
+      ...chips.map((text) => {
+        const e = document.createElement('span');
+        e.className = 'pill num';
+        e.textContent = text;
+        return e;
+      }),
+    );
+  }
+
   private setBanner(message: string | null): void {
     this.banner.textContent = message ?? '';
     this.banner.classList.toggle('visible', Boolean(message));
@@ -240,7 +257,7 @@ export class ReplayPage {
     this.clock = clock;
     this.caveat.textContent = rep.caveat || CAVEAT;
     const dur = rep.log.duration_s ?? rep.t[n - 1] - rep.t[0];
-    this.meta.textContent = `${rep.log.role} · ${rep.log.id.slice(0, 8)} · ${fmtFixed(dur, 0)} s · ${rep.rate_hz > 0 ? fmtFixed(rep.rate_hz, 0) : DASH} Hz grid · ${rep.events.ekf2_resets_s.length} EKF2 reset${rep.events.ekf2_resets_s.length === 1 ? '' : 's'}`;
+    this.setMeta(metaChips({ role: rep.log.role, id: rep.log.id, durationS: dur, rateHz: rep.rate_hz, resets: rep.events.ekf2_resets_s.length }));
     this.path?.setReplay(rep);
     this.panels.setReplay(rep, clock);
     this.shownT = Number.NaN;

@@ -1,6 +1,7 @@
 // Shared plumbing for the two WebGL viewports: a canvas that fills its panel, resize handling,
 // dirty-flag rendering and a small overlay toolbar. Browser-only (not imported by the tests).
 import * as THREE from 'three';
+import { SCREEN } from '../theme/palette';
 
 export interface Viewport {
   readonly body: HTMLElement;
@@ -16,7 +17,7 @@ export function createViewport(container: HTMLElement): Viewport {
   overlay.className = 'vp-overlay';
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setClearColor(0x050810, 1);
+  renderer.setClearColor(new THREE.Color(SCREEN.clear), 1); // dark plum "screen" in both modes
   renderer.domElement.className = 'vp-canvas';
   body.append(renderer.domElement, overlay);
   container.append(body);

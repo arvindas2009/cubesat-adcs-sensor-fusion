@@ -2,6 +2,7 @@
 // (zenith up, nadir down), the estimate as a cyan ghost, nadir / Sun / B arrows and the wheel bars.
 // 1 world unit = 10 cm. Frame matrices go through math/frames.ts.
 import * as THREE from 'three';
+import { SCREEN } from '../theme/palette';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { displayMatrixToWorld, zUpToWorld } from '../math/frames';
@@ -139,7 +140,7 @@ export class SatView {
     this.scene.add(fill);
 
     // Local horizontal.
-    const grid = new THREE.GridHelper(14, 14, 0x2e4068, 0x1a2640);
+    const grid = new THREE.GridHelper(14, 14, new THREE.Color(SCREEN.gridMajor), new THREE.Color(SCREEN.gridMinor));
     grid.position.y = GRID_Y;
     this.scene.add(grid);
 
@@ -267,7 +268,7 @@ export class SatView {
     const dz = 1.1;
     const frame = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(0.7, WHEEL_H, 3.5)),
-      new THREE.LineBasicMaterial({ color: 0x33456b, transparent: true, opacity: 0.6 }),
+      new THREE.LineBasicMaterial({ color: new THREE.Color(SCREEN.gridMajor).getHex(), transparent: true, opacity: 0.6 }),
     );
     frame.position.set(x, GRID_Y + WHEEL_H / 2, z0 + dz);
     this.scene.add(frame);
