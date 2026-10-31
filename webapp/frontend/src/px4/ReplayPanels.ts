@@ -1,15 +1,21 @@
 // Side panels, timeline and plot strips of the PX4 replay page (docs/specs/px4_replay.md §3.3).
 // Browser-only: the non-trivial logic (series, clock, readout values) is pure and unit-tested in
 // series.ts / clock.ts. Every number shown comes from the replay document.
-import uPlot from 'uplot';
-import 'uplot/dist/uPlot.min.css';
 import { DASH, fmtFixed } from '../adcs/format';
-import { clampLog, logRange } from '../adcs/logic';
-import { chromeColors, dataColors, nisFallback, onThemeChange, currentTheme, whenFontsReady, type DataColors } from '../theme';
+import { FONT_MONO, FONT_UI, chromeColors, dataColors, onThemeChange, whenFontsReady } from '../theme';
+import { buildPlotCard } from '../ui/chart';
+import { sliderKey, sliderText } from '../ui/a11y';
+import { appendHelp } from '../ui/help';
+import { readoutGroup, readoutRow, type RowSpec } from '../ui/readout';
+import { chartDialog } from '../ui/ChartDialog';
+import { CHART_HELP } from '../ui/glossary';
+import { glyphSvg, px4TimelineItems } from '../ui/glyphs';
+import { renderLegend, type LegendHandle } from '../ui/legend';
 import { SPEEDS, DEFAULT_SPEED, indexAt, xToTime } from './clock';
 import type { PlaybackClock } from './clock';
-import { alignColumns, diffColumns, heightColumns, nextReset, nisBands, nisSeries, prevReset, readoutsAt } from './series';
-import type { NisBand, ReadoutValues } from './series';
+import { PLOT_HEADS, ReplayChart } from './charts';
+import { nextReset, prevReset, readoutsAt } from './series';
+import type { ReadoutValues } from './series';
 import type { LogEntry, LogsResponse, Replay } from './types';
 
 export interface ReplayHandlers {
@@ -30,9 +36,6 @@ export interface ReplayPanelRoots {
 }
 
 export const LOADING_TEXT = 'Running the filter… (first load of a log takes 10–35 s; cached afterwards)';
-const FONT_FAMILY = '"Schibsted Grotesk Variable", system-ui, sans-serif';
-/** Event-marker role (magenta) of the active mode, shared by the timeline and the plots. */
-const resetColor = (): string => dataColors().kick;
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -239,38 +242,83 @@ class Readouts {
 
   constructor(root: HTMLElement) {
     const b = body(root);
-    const table = el('div', 'ro-table');
-    table.append(el('span'), el('span', 'ro-head ours', 'ours'), el('span', 'ro-head ekf2', 'EKF2 (reference)'));
-    const addPair = (key: string, label: string): void => {
-      const a = el('span', 'readout-value', DASH);
-      const c = el('span', 'readout-value', DASH);
-      table.append(el('span', 'readout-label', label), a, c);
+    b.classList.add('ro-body');
+
+    // Attitude and height: ours next to EKF2 (reference), one table.
+    const g1 = readoutGroup('Attitude and height');
+    const table = el('table', 'ro-table');
+    const head = el('tr');
+    const corner = el('th', 'visually-hidden', 'Quantity');
+    corner.scope = 'col';
+    head.append(corner, this.colHead('ours', 'ours', false), this.colHead('ekf2', 'EKF2 (reference)', true));
+    const thead = el('thead');
+    thead.append(head);
+    const tbody = el('tbody');
+    const addPair = (key: string, label: string, unit: string): void => {
+      const tr = el('tr');
+      const th = el('th', 'readout-label', label);
+      th.scope = 'row';
+      th.append(' ', el('span', 'ro-unit', unit));
+      const a = el('td', 'readout-value', DASH);
+      const c = el('td', 'readout-value', DASH);
+      tr.append(th, a, c);
+      tbody.append(tr);
       this.vals.set(`${key}.o`, a);
       this.vals.set(`${key}.e`, c);
     };
-    addPair('roll', 'roll [°]');
-    addPair('pitch', 'pitch [°]');
-    addPair('yaw', 'yaw [°]');
-    addPair('height', 'height above start [m]');
-    const grid = el('div', 'readout-grid');
-    const add = (key: string, label: string, title?: string): void => {
-      const lab = el('span', 'readout-label', label);
-      if (title) lab.title = title;
-      const val = el('span', 'readout-value', DASH);
-      const cell = el('div', 'ro');
-      cell.append(lab, val);
-      grid.append(cell);
-      this.vals.set(key, val);
-    };
-    add('t', 't [s]', 'Log time of the current sample');
-    add('el', 'elapsed [s]');
-    add('frac', 'log position');
-    add('s3', '3σ attitude (max) [°]', 'Largest of the three attitude-error 3-sigma values of our filter');
-    add('tilt', 'tilt diff [°]', 'ours − EKF2');
-    add('yawd', 'yaw diff [°]', 'ours − EKF2, signed');
-    add('posh', 'horiz. pos diff [m]', 'ours − EKF2');
-    add('posd', 'vert. pos diff [m]', 'ours − EKF2, positive = ours lower');
-    b.append(table, grid);
+    addPair('roll', 'roll', '°');
+    addPair('pitch', 'pitch', '°');
+    addPair('yaw', 'yaw', '°');
+    addPair('height', 'height above start', 'm');
+    const cols = el('colgroup');
+    cols.append(el('col'), el('col', 'c-val'), el('col', 'c-val'));
+    table.append(cols, thead, tbody);
+    g1.section.replaceChildren(g1.section.firstElementChild as Element, table);
+    b.append(g1.section);
+
+    const groups: { heading: string; rows: RowSpec[] }[] = [
+      {
+        heading: 'Difference, ours − EKF2',
+        rows: [
+          { key: 'tilt', label: 'Tilt', unit: '°', help: 'tilt', title: 'ours − EKF2' },
+          { key: 'yawd', label: 'Yaw (signed)', unit: '°', title: 'ours − EKF2, signed' },
+          { key: 'posh', label: 'Horizontal position', unit: 'm', title: 'ours − EKF2' },
+          { key: 'posd', label: 'Vertical position (+ = ours lower)', unit: 'm', title: 'ours − EKF2, positive = ours lower' },
+        ],
+      },
+      {
+        heading: 'Filter confidence',
+        rows: [{ key: 's3', label: '3σ attitude, largest axis', unit: '°', help: 'sigma3', title: 'Largest of the three attitude-error 3-sigma values of our filter' }],
+      },
+      {
+        heading: 'Time',
+        rows: [
+          { key: 't', label: 'Log time', unit: 's', title: 'Log time of the current sample' },
+          { key: 'el', label: 'Elapsed', unit: 's' },
+          { key: 'frac', label: 'Position', unit: 'of log' },
+        ],
+      },
+    ];
+    for (const g of groups) {
+      const grp = readoutGroup(g.heading);
+      for (const spec of g.rows) {
+        const r = readoutRow(spec, DASH);
+        grp.list.append(r.row);
+        this.vals.set(spec.key, r.value);
+      }
+      b.append(grp.section);
+    }
+  }
+
+  /** Column head of the table: a legend glyph (colour from the role via CSS), the name, and for EKF2 its help. */
+  private colHead(role: 'ours' | 'ekf2', label: string, help: boolean): HTMLElement {
+    const th = el('th', `ro-head ${role}`);
+    th.scope = 'col';
+    const g = el('span', 'lg-glyph');
+    g.innerHTML = glyphSvg({ kind: 'line', dash: role === 'ekf2' }, 'currentColor');
+    th.append(g, ' ', label);
+    if (help) appendHelp(th, 'ekf2');
+    return th;
   }
 
   private set(key: string, text: string): void {
@@ -309,6 +357,8 @@ class Readouts {
 class TimelineBar {
   private readonly canvas = el('canvas', 'timeline-canvas');
   private readonly ctx: CanvasRenderingContext2D | null;
+  private readonly legend: LegendHandle;
+  private describedAt = -Infinity;
   private rep: Replay | null = null;
   private t = 0;
   private w = 0;
@@ -320,17 +370,42 @@ class TimelineBar {
     root: HTMLElement,
     private readonly onSeek: (t: number) => void,
   ) {
-    root.append(this.canvas);
+    // DOM legend row above the canvas (the same legend system as the plots), then the canvas band.
+    const legendHost = el('div', 'timeline-legend');
+    this.legend = renderLegend(px4TimelineItems(dataColors(), chromeColors()), { surface: 'panel' });
+    legendHost.append(this.legend.el);
+    const canvasHost = el('div', 'timeline-body');
+    canvasHost.append(this.canvas);
+    root.append(legendHost, canvasHost);
     this.ctx = this.canvas.getContext('2d');
     this.canvas.classList.add('seekable');
+    // The canvas is a slider over the log: arrows move 1 s (Shift 10 s), Home / End jump; all through onSeek.
+    this.canvas.tabIndex = 0;
+    this.canvas.setAttribute('role', 'slider');
+    this.canvas.setAttribute('aria-label', 'Position in the log');
+    this.canvas.setAttribute('aria-valuemin', '0');
+    this.canvas.setAttribute('aria-valuemax', '0');
+    this.canvas.setAttribute('aria-valuenow', '0');
+    this.canvas.setAttribute('aria-valuetext', 'no log loaded');
+    this.canvas.addEventListener('keydown', (e) => {
+      const r = this.rep;
+      const move = sliderKey(e.key, e.shiftKey);
+      if (!r || !move || e.ctrlKey || e.metaKey || e.altKey) return;
+      e.preventDefault();
+      const t0 = r.t[0];
+      const t1 = r.t[r.t.length - 1];
+      const to = 'delta' in move ? this.t + move.delta : move.to === 'start' ? t0 : t1;
+      this.onSeek(Math.min(t1, Math.max(t0, to)));
+      this.describe(true);
+    });
     new ResizeObserver(() => {
       this.dpr = window.devicePixelRatio || 1;
-      this.w = Math.max(1, Math.floor(root.clientWidth));
-      this.h = Math.max(1, Math.floor(root.clientHeight));
+      this.w = Math.max(1, Math.floor(canvasHost.clientWidth));
+      this.h = Math.max(1, Math.floor(canvasHost.clientHeight));
       this.canvas.width = Math.round(this.w * this.dpr);
       this.canvas.height = Math.round(this.h * this.dpr);
       this.draw();
-    }).observe(root);
+    }).observe(canvasHost);
 
     const seek = (e: PointerEvent): void => {
       const r = this.rep;
@@ -364,12 +439,38 @@ class TimelineBar {
     this.rep = rep;
     this.t = rep ? rep.t[0] : 0;
     this.draw();
+    if (rep) {
+      this.canvas.setAttribute('aria-valuemax', (rep.t[rep.t.length - 1] - rep.t[0]).toFixed(1));
+    } else {
+      this.canvas.setAttribute('aria-valuemax', '0');
+      this.canvas.setAttribute('aria-valuetext', 'no log loaded');
+    }
+    this.describe(true);
+  }
+
+  /** aria-valuenow / aria-valuetext of the slider, at most 4 times a second while playing. */
+  private describe(force: boolean): void {
+    const r = this.rep;
+    if (!r) return;
+    const now = performance.now();
+    if (!force && now - this.describedAt < 250) return;
+    this.describedAt = now;
+    const dur = r.t[r.t.length - 1] - r.t[0];
+    const el = this.t - r.t[0];
+    this.canvas.setAttribute('aria-valuenow', el.toFixed(1));
+    this.canvas.setAttribute('aria-valuetext', sliderText(el, dur));
+  }
+
+  /** Mode change: the legend glyphs take the new palette (the canvas is redrawn by the caller). */
+  recolor(): void {
+    this.legend.setColors(px4TimelineItems(dataColors(), chromeColors()));
   }
 
   setTime(t: number): void {
     if (t === this.t) return;
     this.t = t;
     this.draw();
+    this.describe(false);
   }
 
   draw(): void {
@@ -379,25 +480,11 @@ class TimelineBar {
     g.clearRect(0, 0, this.w, this.h);
     const c = chromeColors(); // the active mode's card / band / marker colours
     const d = dataColors();
-    g.font = `12px ${FONT_FAMILY}`;
+    g.font = `12px ${FONT_UI}`;
     g.textBaseline = 'middle';
     const { x0, x1 } = this;
-    const bandTop = 18;
-    const bandBot = Math.max(bandTop + 20, this.h - 16);
-
-    // legend row
-    let lx = x0;
-    const swatch = (color: string, label: string): void => {
-      g.fillStyle = color;
-      g.fillRect(lx, 4, 9, 9);
-      g.fillStyle = c.dim;
-      g.textAlign = 'left';
-      g.fillText(label, lx + 13, 9);
-      lx += 13 + g.measureText(label).width + 14;
-    };
-    swatch(c.excluded, 'excluded from report statistics');
-    swatch(d.kick, 'EKF2 reset');
-    swatch(c.cursor, 'cursor');
+    const bandTop = 4;
+    const bandBot = Math.max(bandTop + 20, this.h - 18); // tick numbers sit 10 px below it, inside the canvas
 
     g.fillStyle = c.band;
     g.fillRect(x0, bandTop, x1 - x0, bandBot - bandTop);
@@ -420,7 +507,8 @@ class TimelineBar {
       g.fillText('excluded from report statistics', x0 + 5, (bandTop + bandBot) / 2);
     }
 
-    // time ticks (elapsed seconds)
+    // time ticks (elapsed seconds, numerals in mono)
+    g.font = `12px ${FONT_MONO}`;
     const step = niceStep(dur / 10);
     g.strokeStyle = c.tick;
     g.fillStyle = c.dim;
@@ -435,6 +523,7 @@ class TimelineBar {
     }
     g.textAlign = 'left';
     g.fillText('s', x1 + 2, bandBot + 10);
+    g.font = `12px ${FONT_UI}`;
 
     // EKF2 resets
     g.strokeStyle = d.kick;
@@ -459,304 +548,6 @@ class TimelineBar {
   }
 }
 
-// ===================================================================== plots
-
-interface PlotModel {
-  data: uPlot.AlignedData;
-  series: uPlot.Series[];
-  log: boolean;
-  bands: NisBand[];
-  /** Indices (into `series`, 0-based after x) of legend rows to hide. */
-  hideLegend: number[];
-}
-
-type ModelBuilder = (rep: Replay) => PlotModel;
-
-function tickLabel(v: number): string {
-  const a = Math.abs(v);
-  if (a >= 1000) return `${+(v / 1000).toFixed(1)}k`;
-  if (a > 0 && a < 0.01) return v.toExponential(0);
-  return String(+v.toFixed(2));
-}
-
-/** NIS sensor name -> colour role (the server may name sensors the table does not know: those cycle a fallback list). */
-const NIS_ROLES: Record<string, keyof DataColors> = {
-  gps_pos: 'nisGpsPos',
-  gps_vel: 'nisGpsVel',
-  baro: 'nisBaro',
-  mag_heading: 'nisMag',
-};
-const NIS_FLOOR = 1e-3;
-
-function nisColor(sensor: string, index: number): string {
-  const role = NIS_ROLES[sensor];
-  if (role) return dataColors()[role];
-  const fb = nisFallback(currentTheme());
-  return fb[index % fb.length];
-}
-
-function lineSeries(label: string, color: string, dash?: number[], fmt: (v: number) => string = (v) => fmtFixed(v, 3)): uPlot.Series {
-  return {
-    label,
-    stroke: color,
-    width: 2,
-    dash,
-    spanGaps: false,
-    points: { show: false },
-    value: (_u, v) => (v === null || v === undefined ? DASH : fmt(v)),
-  };
-}
-
-function pointSeries(label: string, color: string, hollow: boolean): uPlot.Series {
-  return {
-    label,
-    paths: () => null, // markers only, no connecting line
-    points: hollow
-      ? { show: true, size: 4, width: 1, stroke: `${color}88`, fill: 'transparent' }
-      : { show: true, size: 3, width: 0, stroke: color, fill: color },
-    value: (_u, v) => (v === null || v === undefined ? DASH : fmtFixed(v, 2)),
-  };
-}
-
-const PLOT_HEADS: { title: string; sub?: string }[] = [
-  { title: 'Attitude difference, ours − EKF2 [°]' },
-  { title: 'Position difference, ours − EKF2 [m]' },
-  { title: 'NIS by sensor', sub: 'log scale; hollow = rejected; dashed = 95 % band by dof' },
-  { title: 'Height above start [m]' },
-];
-
-const MODELS: ModelBuilder[] = [
-  (rep) => {
-    const { att } = diffColumns(rep);
-    const d = dataColors();
-    return {
-      data: att as unknown as uPlot.AlignedData,
-      series: [lineSeries('tilt', d.nadir), lineSeries('yaw (signed)', d.field)],
-      log: false,
-      bands: [],
-      hideLegend: [],
-    };
-  },
-  (rep) => {
-    const { pos } = diffColumns(rep);
-    const d = dataColors();
-    return {
-      data: pos as unknown as uPlot.AlignedData,
-      series: [lineSeries('horizontal', d.nadir), lineSeries('vertical (+ = ours lower)', d.field)],
-      log: false,
-      bands: [],
-      hideLegend: [],
-    };
-  },
-  (rep) => {
-    const sensors = nisSeries(rep);
-    const parts = sensors.flatMap((s) => [s.accepted, s.rejected]);
-    const cols = alignColumns(parts);
-    const data = [cols[0], ...cols.slice(1).map((c) => c.map((v) => clampLog(v, NIS_FLOOR)))];
-    const series: uPlot.Series[] = [];
-    const hide: number[] = [];
-    sensors.forEach((s, i) => {
-      const color = nisColor(s.sensor, i);
-      series.push(pointSeries(s.sensor, color, false), pointSeries(`${s.sensor} (rejected)`, color, true));
-      hide.push(series.length - 1); // legend: one entry per sensor
-    });
-    return { data: data as unknown as uPlot.AlignedData, series, log: true, bands: nisBands(rep), hideLegend: hide };
-  },
-  (rep) => {
-    const d = dataColors();
-    return {
-      data: heightColumns(rep) as unknown as uPlot.AlignedData,
-      series: [lineSeries('ours', d.ours), lineSeries('EKF2 (reference)', d.ekf2, [6, 4])],
-      log: false,
-      bands: [],
-      hideLegend: [],
-    };
-  },
-];
-
-class ReplayPlot {
-  private readonly host = el('div', 'plot-host');
-  private u: uPlot | null = null;
-  private nowLine: HTMLElement | null = null;
-  private lastX = NaN;
-  private lastT = 0;
-  private bands: NisBand[] = [];
-  private rep: Replay | null = null;
-
-  constructor(
-    root: HTMLElement,
-    head: { title: string; sub?: string },
-    private readonly model: ModelBuilder,
-    private readonly onSeek: (t: number) => void,
-  ) {
-    const h = el('div', 'card-head');
-    h.append(el('h2', undefined, head.title));
-    if (head.sub) h.append(el('span', 'card-sub', head.sub));
-    root.append(h, this.host);
-    new ResizeObserver(() => this.resize()).observe(this.host);
-  }
-
-  /** Mode change: rebuild from the loaded replay with the new palette, keeping the "now" line where it was. */
-  rebuild(): void {
-    if (!this.rep) return;
-    this.setReplay(this.rep);
-    this.setTime(this.lastT);
-  }
-
-  redraw(): void {
-    this.u?.redraw();
-  }
-
-  private size(): { width: number; height: number } {
-    return { width: Math.max(100, Math.floor(this.host.clientWidth)), height: Math.max(80, Math.floor(this.host.clientHeight) - 22) };
-  }
-
-  /** (Re)build the plot for a replay; null just destroys the old one. */
-  setReplay(rep: Replay | null): void {
-    this.u?.destroy();
-    this.u = null;
-    this.nowLine = null;
-    this.lastX = NaN;
-    this.rep = rep;
-    if (!rep || rep.t.length < 2) return;
-    const m = this.model(rep);
-    this.bands = m.bands;
-    const t0 = rep.t[0];
-    const t1 = rep.t[rep.t.length - 1];
-    const c = chromeColors();
-    const resetStroke = resetColor();
-    // axis text dim, grid a faint tint of the card's block colour, ticks hidden (spec §3)
-    const axisBase = { stroke: c.dim, grid: { stroke: c.grid, width: 1 }, ticks: { show: false }, font: `12px ${FONT_FAMILY}` };
-    const resets = rep.events.ekf2_resets_s;
-    const opts: uPlot.Options = {
-      ...this.size(),
-      padding: [8, 14, 0, 0],
-      legend: { show: true, live: true },
-      cursor: { sync: { key: 'px4', setSeries: false }, drag: { x: false, y: false }, points: { show: false } },
-      scales: {
-        x: { time: false, range: () => [t0, t1] },
-        y: m.log
-          ? { distr: 3, log: 10, range: (_u, min, max) => logRange(min, max, NIS_FLOOR, this.bands.flatMap((b) => [b.lo, b.hi])) }
-          : {},
-      },
-      axes: [
-        { ...axisBase, size: 24, values: (_u, splits) => splits.map(tickLabel) },
-        { ...axisBase, size: 54, values: (_u, splits) => splits.map((v) => (v === null ? '' : tickLabel(v))) },
-      ],
-      series: [{ label: 't [s]', value: (_u, v) => (v === null || v === undefined ? DASH : `${v.toFixed(2)} s`) }, ...m.series],
-      hooks: {
-        draw: [
-          (u) => {
-            const ctx = u.ctx;
-            const dpr = window.devicePixelRatio || 1;
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
-            ctx.clip();
-            // EKF2 resets: thin vertical lines
-            ctx.strokeStyle = `${resetStroke}aa`;
-            ctx.lineWidth = dpr;
-            for (const r of resets) {
-              const x = Math.round(u.valToPos(r, 'x', true)) + 0.5;
-              ctx.beginPath();
-              ctx.moveTo(x, u.bbox.top);
-              ctx.lineTo(x, u.bbox.top + u.bbox.height);
-              ctx.stroke();
-            }
-            // chi-square 95 % bands (NIS plot)
-            ctx.setLineDash([6 * dpr, 4 * dpr]);
-            ctx.font = `${11 * dpr}px ${FONT_FAMILY}`;
-            ctx.strokeStyle = c.dim;
-            for (const b of this.bands) {
-              for (const v of [b.lo, b.hi]) {
-                const y = u.valToPos(Math.max(v, NIS_FLOOR), 'y', true);
-                ctx.beginPath();
-                ctx.moveTo(u.bbox.left, y);
-                ctx.lineTo(u.bbox.left + u.bbox.width, y);
-                ctx.stroke();
-              }
-            }
-            // Labels sit at the right end of their line, on a card-coloured backing so data under them stays
-            // readable. Bands whose upper lines are close on the log axis are stacked downward, never overlapping.
-            ctx.setLineDash([]);
-            ctx.textAlign = 'right';
-            ctx.textBaseline = 'middle';
-            const xr = u.bbox.left + u.bbox.width - 6 * dpr;
-            const rowH = 14 * dpr;
-            let prevY = -Infinity;
-            for (const b of [...this.bands].sort((p, q) => q.hi - p.hi)) {
-              let y = u.valToPos(Math.max(b.hi, NIS_FLOOR), 'y', true) - 8 * dpr;
-              y = Math.max(y, u.bbox.top + rowH / 2, prevY + rowH);
-              prevY = y;
-              const text = `dof ${b.dof}`;
-              const w = ctx.measureText(text).width;
-              ctx.globalAlpha = 0.85;
-              ctx.fillStyle = c.card;
-              ctx.fillRect(xr - w - 4 * dpr, y - rowH / 2, w + 8 * dpr, rowH);
-              ctx.globalAlpha = 1;
-              ctx.fillStyle = c.dim;
-              ctx.fillText(text, xr, y);
-            }
-            ctx.restore();
-          },
-        ],
-        ready: [
-          (u) => {
-            const rows = u.root.querySelectorAll<HTMLElement>('.u-legend .u-series');
-            for (const i of m.hideLegend) if (rows[i + 1]) rows[i + 1].style.display = 'none';
-            // the moving "now" line, a cheap DOM overlay (no redraw of the full plot per frame)
-            const line = el('div', 'plot-now');
-            u.over.append(line);
-            this.nowLine = line;
-            // click or drag to seek
-            let down = false;
-            const seek = (e: PointerEvent): void => {
-              const x = e.clientX - u.over.getBoundingClientRect().left;
-              this.onSeek(Math.min(t1, Math.max(t0, u.posToVal(x, 'x'))));
-            };
-            u.over.addEventListener('pointerdown', (e) => {
-              down = true;
-              u.over.setPointerCapture(e.pointerId);
-              seek(e);
-            });
-            u.over.addEventListener('pointermove', (e) => {
-              if (down) seek(e);
-            });
-            const end = (): void => {
-              down = false;
-            };
-            u.over.addEventListener('pointerup', end);
-            u.over.addEventListener('pointercancel', end);
-          },
-        ],
-      },
-    };
-    this.u = new uPlot(opts, m.data, this.host);
-  }
-
-  setTime(t: number): void {
-    this.lastT = t;
-    const u = this.u;
-    const line = this.nowLine;
-    if (!u || !line) return;
-    const x = Math.round(u.valToPos(t, 'x'));
-    if (x === this.lastX) return;
-    this.lastX = x;
-    line.style.transform = `translateX(${x}px)`;
-    line.style.display = Number.isFinite(x) ? 'block' : 'none';
-  }
-
-  private resize(): void {
-    if (!this.u) return;
-    const { width, height } = this.size();
-    if (width > 20 && height > 40) {
-      this.u.setSize({ width, height });
-      this.lastX = NaN;
-      this.setTime(this.lastT);
-    }
-  }
-}
-
 // ===================================================================== composite
 
 export class ReplayPanels {
@@ -764,22 +555,38 @@ export class ReplayPanels {
   private readonly transport: TransportPanel;
   private readonly readouts: Readouts;
   private readonly timeline: TimelineBar;
-  private readonly plots: ReplayPlot[];
+  private readonly cards: ReplayChart[];
+  private readonly expandBtns: HTMLButtonElement[] = [];
+  private readonly summaryEls: HTMLElement[] = [];
+  private summaryAt = -Infinity;
+  /** Every chart that must follow the replay, theme and fonts: the four cards plus the chart of the open dialog. */
+  private readonly live = new Set<ReplayChart>();
+  private rep: Replay | null = null;
+  private lastT = 0;
+  private readonly onSeek: (t: number) => void;
 
   constructor(roots: ReplayPanelRoots, handlers: ReplayHandlers) {
     this.log = new LogPanel(roots.log, handlers);
     this.transport = new TransportPanel(roots.transport, handlers);
     this.readouts = new Readouts(roots.readouts);
     this.timeline = new TimelineBar(roots.timeline, handlers.onSeek);
-    this.plots = roots.plots.map((r, i) => new ReplayPlot(r, PLOT_HEADS[i], MODELS[i], handlers.onSeek));
+    this.onSeek = handlers.onSeek;
+    this.cards = roots.plots.map((r, i) => {
+      const parts = buildPlotCard(r, { title: PLOT_HEADS[i].title, unit: PLOT_HEADS[i].unit }, () => this.expand(i));
+      this.expandBtns.push(parts.expandBtn);
+      this.summaryEls.push(parts.summaryEl);
+      return new ReplayChart(parts.host, i, handlers.onSeek, { variant: 'card', legendHost: parts.legendHost });
+    });
+    for (const c of this.cards) this.live.add(c);
     // Mode change: plots are rebuilt from the loaded replay with the new palette, the timeline is redrawn.
     onThemeChange(() => {
-      for (const p of this.plots) p.rebuild();
+      for (const c of this.live) c.rebuild();
+      this.timeline.recolor();
       this.timeline.draw();
     });
     // Canvas text drawn before the web font arrived used the fallback font.
     whenFontsReady(() => {
-      for (const p of this.plots) p.redraw();
+      for (const c of this.live) c.redraw();
       this.timeline.draw();
     });
   }
@@ -797,12 +604,42 @@ export class ReplayPanels {
     this.log.setActive(role);
   }
 
+  /** The sheet settled (or the layout changed): uPlot caches its bounding rect, so refresh it on every chart. */
+  syncCharts(): void {
+    for (const c of this.live) c.syncRect();
+  }
+
+  /** Open the dialog with a large, zoomable chart of plot `i` (the now-line keeps moving while it is open). */
+  expand(i: number): void {
+    const head = PLOT_HEADS[i];
+    let chart: ReplayChart | null = null;
+    chartDialog().open({
+      title: head.title,
+      unit: head.unit,
+      help: CHART_HELP[head.id],
+      returnFocus: this.expandBtns[i],
+      mount: (chartHost, legendHost) => {
+        const c = new ReplayChart(chartHost, i, this.onSeek, { variant: 'large', legendHost });
+        chart = c;
+        this.live.add(c);
+        c.setReplay(this.rep);
+        c.setTime(this.lastT);
+        return { chart: c, onZoom: (cb) => c.onZoom(cb) };
+      },
+      onClose: () => {
+        if (chart) this.live.delete(chart);
+      },
+    });
+  }
+
   /** A new replay (or null): rebuild the plots, reset the timeline, transport and readouts. */
   setReplay(rep: Replay | null, clock: PlaybackClock | null): void {
     this.transport.setReplay(rep, clock);
     this.timeline.setReplay(rep);
     this.readouts.clear();
-    for (const p of this.plots) p.setReplay(rep);
+    this.rep = rep;
+    for (const c of this.live) c.setReplay(rep);
+    this.refreshSummaries(true);
     if (rep && clock) this.onTime(rep, clock);
   }
 
@@ -812,8 +649,20 @@ export class ReplayPanels {
     this.readouts.update(readoutsAt(rep, i, clock.t), rep.t[0]);
     this.transport.update(clock, rep);
     this.timeline.setTime(clock.t);
-    for (const p of this.plots) p.setTime(clock.t);
+    this.lastT = clock.t;
+    for (const c of this.live) c.setTime(clock.t);
+    this.refreshSummaries(false);
     return i;
+  }
+
+  /** Hidden text alternatives of the plot cards: the latest values at the playback time, at most every 2 s. */
+  private refreshSummaries(force: boolean): void {
+    const now = performance.now();
+    if (!force && now - this.summaryAt < 2000) return;
+    this.summaryAt = now;
+    this.cards.forEach((c, i) => {
+      this.summaryEls[i].textContent = c.summaryText();
+    });
   }
 
   /** Transport state only (e.g. after a Play/Pause or speed change). */

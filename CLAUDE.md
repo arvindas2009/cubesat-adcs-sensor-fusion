@@ -22,7 +22,7 @@ Two linked pure-Python projects sharing an error-state EKF + quaternion core: **
 .venv/Scripts/python -m pytest -q          # all tests (~245–300 s, 1800 tests incl. 1 opt-in skip; webapp tests skip without the [web] extra)
 .venv/Scripts/python -m pip install -e .[web]   # after adding packages/modules ([web] = fastapi/uvicorn/httpx for webapp/)
 .venv/Scripts/python -m webapp             # browser simulator, http://127.0.0.1:8000 (serves webapp/frontend/dist)
-cd webapp/frontend && npm ci && npm run build && npm test   # frontend: build into dist/, vitest (131)
+cd webapp/frontend && npm ci && npm run build && npm test   # frontend: build into dist/, vitest (239)
 ```
 
 Python 3.14 venv at `.venv/` (fallback `py -3.12` if a wheel is missing).

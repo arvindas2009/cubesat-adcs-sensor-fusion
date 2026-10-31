@@ -8,6 +8,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { bodyNedToWorld } from '../math/ned';
 import { AXIS_COLORS, COLORS } from '../adcs/theme';
+import { VIEW_LEGENDS } from '../ui/glyphs';
+import { renderLegend } from '../ui/legend';
 import { createViewport, disposeObject, labelElement, observeSize } from '../adcs/viewport';
 import { finiteRow } from './series';
 import type { Row } from './types';
@@ -73,7 +75,7 @@ export class DroneView {
   private dirty = true;
 
   constructor(container: HTMLElement) {
-    const vp = createViewport(container);
+    const vp = createViewport(container, 'Drone attitude view: our estimate and the EKF2 reference, with the body axes');
     this.renderer = vp.renderer;
     this.labels.domElement.className = 'label-layer';
     vp.body.append(this.labels.domElement);
@@ -123,21 +125,9 @@ export class DroneView {
   }
 
   private buildLegend(): HTMLElement {
-    const items: [string, string][] = [
-      ['ours', COLORS.nadir],
-      ['EKF2 (reference)', COLORS.ekf2],
-      ['body x', COLORS.axisX],
-      ['body y', COLORS.axisY],
-      ['body z', COLORS.axisZ],
-    ];
-    const el = document.createElement('div');
-    el.className = 'vp-legend';
-    for (const [name, color] of items) {
-      const s = document.createElement('span');
-      s.innerHTML = `<i style="background:${color}"></i>${name}`;
-      el.append(s);
-    }
-    return el;
+    const lg = renderLegend(VIEW_LEGENDS.drone(COLORS), { surface: 'screen' });
+    lg.el.classList.add('vp-legend');
+    return lg.el;
   }
 
   /** Orient both drones from wire quaternions [w, x, y, z] (body FRD to NED); null / non-finite hides that drone. */

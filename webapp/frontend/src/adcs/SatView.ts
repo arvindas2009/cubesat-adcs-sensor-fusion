@@ -8,6 +8,8 @@ import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRe
 import { displayMatrixToWorld, zUpToWorld } from '../math/frames';
 import type { Frame, Info, Vec3 } from '../types';
 import { AXIS_COLORS, COLORS } from './theme';
+import { VIEW_LEGENDS } from '../ui/glyphs';
+import { renderLegend } from '../ui/legend';
 import { createViewport, labelElement, observeSize } from './viewport';
 
 const UNIT = 10; // world units per metre (1 unit = 10 cm)
@@ -126,7 +128,7 @@ export class SatView {
   private dirty = true;
 
   constructor(container: HTMLElement) {
-    const vp = createViewport(container);
+    const vp = createViewport(container, 'Attitude view: the satellite body and its estimate in the local frame with zenith up, with arrows for the body axes, nadir, the Sun and the magnetic field, and bars for the wheel speeds');
     this.renderer = vp.renderer;
     this.labels.domElement.className = 'label-layer';
     vp.body.append(this.labels.domElement);
@@ -195,23 +197,9 @@ export class SatView {
   }
 
   private buildLegend(): HTMLElement {
-    const items: [string, string][] = [
-      ['body x', COLORS.axisX],
-      ['body y', COLORS.axisY],
-      ['body z', COLORS.axisZ],
-      ['estimate', COLORS.estimate],
-      ['nadir', COLORS.nadir],
-      ['Sun', COLORS.sun],
-      ['B field', COLORS.field],
-    ];
-    const el = document.createElement('div');
-    el.className = 'vp-legend';
-    for (const [name, color] of items) {
-      const s = document.createElement('span');
-      s.innerHTML = `<i style="background:${color}"></i>${name}`;
-      el.append(s);
-    }
-    return el;
+    const lg = renderLegend(VIEW_LEGENDS.sat(COLORS), { surface: 'screen' });
+    lg.el.classList.add('vp-legend');
+    return lg.el;
   }
 
   /** (Re)build the box, ghost and axes for the given body size (m). */
@@ -336,6 +324,11 @@ export class SatView {
       const txt = `${['x', 'y', 'z'][i]} ${sign}${Math.abs(rpm[i]).toFixed(0)}`;
       if (bar.label.textContent !== txt) bar.label.textContent = txt;
     }
+    this.dirty = true;
+  }
+
+  /** Redraw on the next render() (after the view was hidden or covered while its size or content changed). */
+  invalidate(): void {
     this.dirty = true;
   }
 

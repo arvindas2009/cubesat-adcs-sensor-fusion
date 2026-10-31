@@ -1,5 +1,5 @@
-// Colour roles (docs/specs/frontend.md §2, docs/specs/ui_theme.md §1).
-// `COLORS` holds the roles as they look on the 3D "screens", which are dark plum in both modes, so these
+// Colour roles (docs/specs/frontend.md §2, docs/specs/ui_console.md §1.2).
+// `COLORS` holds the roles as they look on the 3D "screens", which are near-black in both modes, so these
 // are the dark-mode values of src/theme/palette.ts. Everything that sits on a light or dark card (plots,
 // timeline, DOM) must read the active palette instead: `dataColors()` / `chromeColors()` from '../theme'.
 import { currentTheme, dataColors } from '../theme';
@@ -15,7 +15,7 @@ export const COLORS = {
   axisZ: D.axisZ,
   estimate: D.estimate,
   sun: D.sun,
-  sunOff: '#7E6C7C',
+  sunOff: '#6B7480',
   field: D.field,
   nadir: D.nadir,
   detumble: D.detumble,

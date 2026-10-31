@@ -1,13 +1,19 @@
-// Pure tests of the visual theme (docs/specs/ui_theme.md §4): stored-choice parsing, the role colours of
-// each mode, WCAG contrast of every data colour on its plot card, and that style.css mirrors the palette.
+// Pure tests of the visual theme (docs/specs/ui_console.md §8): stored-choice parsing, the role colours of
+// each mode, WCAG contrast of the UI tokens and of every data colour on its plot card, and that style.css
+// mirrors the palette.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { COLORS } from '../src/adcs/theme';
 import {
-  BRAND,
   DATA_ROLES,
+  FILL_ECLIPSE_TEXT,
+  FONT_MONO,
+  FONT_UI,
   PLOT_CARD,
   SCREEN,
+  UI,
+  UI_CSS_NAMES,
+  type UiTokens,
   chartChrome,
   contrastRatio,
   dataColors,
@@ -122,17 +128,61 @@ describe('contrast on the plot card (spec: data colours >= 3:1)', () => {
   });
 });
 
-describe('screens and brand', () => {
-  it('3D screen text is readable on the plum screen', () => {
+describe('3D screens', () => {
+  it('screen text is readable on the screen', () => {
     expect(contrastRatio(SCREEN.text, SCREEN.clear)).toBeGreaterThanOrEqual(7);
     expect(contrastRatio(SCREEN.textDim, SCREEN.clear)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('ink text on every brand fill that carries text is >= 4.5:1', () => {
-    for (const fill of [BRAND.sunflower, BRAND.mint, BRAND.periwinkle, BRAND.bubblegum, '#E08A00', '#FFB020', '#B8A6FF']) {
-      expect(contrastRatio(BRAND.ink, fill), fill).toBeGreaterThanOrEqual(4.5);
+  it('every COLORS entry is >= 3:1 on the screen (sunOff included)', () => {
+    for (const [name, c] of Object.entries(COLORS)) {
+      expect(contrastRatio(c, SCREEN.clear), `COLORS.${name} ${c}`).toBeGreaterThanOrEqual(3);
     }
-    expect(contrastRatio(BRAND.paper, BRAND.ink)).toBeGreaterThanOrEqual(7);
+  });
+});
+
+describe('UI tokens', () => {
+  const ratio = (a: string, b: string): number => contrastRatio(a, b);
+
+  for (const t of THEMES) {
+    const u = UI[t];
+
+    it(`text roles >= 4.5:1 on the page and the panel (${t})`, () => {
+      for (const bg of [u.page, u.panel]) {
+        for (const k of ['text', 'dim', 'actionText', 'alarm', 'okText'] as const) {
+          expect(ratio(u[k], bg), `${t} ${k} ${u[k]} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    });
+
+    it(`ink on the action fills and the status chips >= 4.5:1 (${t})`, () => {
+      expect(ratio(u.onAction, u.action), 'on action').toBeGreaterThanOrEqual(4.5);
+      expect(ratio(u.onAction, u.actionHover), 'on action hover').toBeGreaterThanOrEqual(4.5);
+      for (const k of ['fillDetumble', 'fillPointing', 'fillSunlit', 'fillDump'] as const) {
+        expect(ratio(u.onAction, u[k]), `ink on ${k}`).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(ratio(FILL_ECLIPSE_TEXT, u.fillEclipse), 'eclipse chip').toBeGreaterThanOrEqual(4.5);
+    });
+
+    it(`focus ring and control borders >= 3:1 on the page and the panel (${t})`, () => {
+      for (const bg of [u.page, u.panel]) {
+        expect(ratio(u.focus, bg), `focus on ${bg}`).toBeGreaterThanOrEqual(3);
+        expect(ratio(u.edgeInput, bg), `edge-input on ${bg}`).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it(`the timeline eclipse band and its edge show on the band (${t})`, () => {
+      const ch = chartChrome(t);
+      expect(Math.max(ratio(ch.eclipse, ch.band), ratio(ch.eclipseEdge, ch.band))).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  it('the plot card is the panel colour', () => {
+    for (const t of THEMES) expect(PLOT_CARD[t]).toBe(UI[t].panel);
+  });
+
+  it('every token is a #rrggbb colour', () => {
+    for (const t of THEMES) for (const [k, v] of Object.entries(UI[t])) expect(v, `${t}.${k}`).toMatch(/^#[0-9A-Fa-f]{6}$/);
   });
 });
 
@@ -162,6 +212,13 @@ function cssBlock(css: string, selector: string): string {
   return css.slice(open + 1, close);
 }
 
+/** Non-hex value (the font stacks) of a variable. */
+function cssText(block: string, name: string): string {
+  const m = new RegExp(`${name}\\s*:\\s*([^;]+);`).exec(block);
+  if (!m) throw new Error(`variable not found: ${name}`);
+  return m[1].trim();
+}
+
 function cssVar(block: string, name: string): string {
   const m = new RegExp(`${name}\\s*:\\s*(#[0-9a-fA-F]{6})\\s*;`).exec(block);
   if (!m) throw new Error(`variable not found: ${name}`);
@@ -183,17 +240,28 @@ describe('style.css mirrors the palette', () => {
       }
     });
 
+    it(`every UI token is mirrored (${t})`, () => {
+      for (const key of Object.keys(UI_CSS_NAMES) as (keyof UiTokens)[]) {
+        const name = UI_CSS_NAMES[key];
+        expect(cssVar(blocks[t], name).toLowerCase(), `${t} ${name}`).toBe(UI[t][key].toLowerCase());
+      }
+    });
+
     it(`plot card variable (${t})`, () => {
-      expect(cssVar(blocks[t], '--card-mint').toLowerCase()).toBe(PLOT_CARD[t].toLowerCase());
+      expect(cssVar(blocks[t], '--panel').toLowerCase()).toBe(PLOT_CARD[t].toLowerCase());
+    });
+
+    it(`eclipse chip text (${t})`, () => {
+      expect(cssVar(blocks[t], '--fill-eclipse-text').toLowerCase()).toBe(FILL_ECLIPSE_TEXT.toLowerCase());
     });
   }
 
-  it('brand colours and screens', () => {
-    expect(cssVar(blocks.light, '--sunflower').toLowerCase()).toBe(BRAND.sunflower.toLowerCase());
-    expect(cssVar(blocks.light, '--ink').toLowerCase()).toBe(BRAND.ink.toLowerCase());
-    expect(cssVar(blocks.light, '--page').toLowerCase()).toBe(BRAND.paper.toLowerCase());
+  it('fonts and the 3D screens', () => {
+    expect(cssText(blocks.light, '--font-ui')).toBe(FONT_UI);
+    expect(cssText(blocks.light, '--font-mono')).toBe(FONT_MONO);
     expect(cssVar(blocks.light, '--screen').toLowerCase()).toBe(SCREEN.clear.toLowerCase());
-    expect(blocks.dark).not.toMatch(/--screen\s*:/); // the screens are the same dark plum in both modes
-    expect(cssVar(blocks.dark, '--page').toLowerCase()).toBe('#160e17');
+    expect(cssVar(blocks.light, '--screen-text').toLowerCase()).toBe(SCREEN.text.toLowerCase());
+    expect(cssVar(blocks.light, '--screen-dim').toLowerCase()).toBe(SCREEN.textDim.toLowerCase());
+    expect(blocks.dark).not.toMatch(/--screen\s*:/); // the screens are the same near-black in both modes
   });
 });

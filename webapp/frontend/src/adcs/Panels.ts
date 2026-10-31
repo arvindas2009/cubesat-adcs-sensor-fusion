@@ -1,7 +1,5 @@
 // Side panels, timeline and plot strips of the ADCS page (docs/specs/frontend.md §2).
 // Browser-only: all non-trivial logic lives in logic.ts / format.ts / history.ts and is unit-tested.
-import uPlot from 'uplot';
-import 'uplot/dist/uPlot.min.css';
 import type { Axis, Command, Frame, FrameEvents, Info, Presets, SessionParams, Status } from '../types';
 import { DASH, fmtAngle, fmtFixed, fmtPercent, fmtSpeed, fmtVec3 } from './format';
 import { eclipseFraction, type Columns, type ModeSegment } from './history';
@@ -10,22 +8,29 @@ import {
   KICK_MAX_DEG_S,
   SLIDER_MAX,
   buildKickCommand,
-  clampLog,
   fieldSpecs,
   intervalRect,
-  logRange,
   orbitTicks,
   sliderToSpeed,
   speedToSlider,
-  timeRange,
   timeToX,
   validateAll,
   type FieldSpec,
 } from './logic';
-import { chromeColors, dataColors, onThemeChange, whenFontsReady, type DataColors } from '../theme';
+import { FONT_MONO, FONT_UI, chromeColors, dataColors, onThemeChange, whenFontsReady } from '../theme';
+import { buildPlotCard } from '../ui/chart';
+import { appendHelp } from '../ui/help';
+import { readoutGroup, readoutRow, type RowSpec } from '../ui/readout';
+import { chartDialog } from '../ui/ChartDialog';
+import { timelineSummary } from '../ui/a11y';
+import { CHART_HELP, type TermId } from '../ui/glossary';
+import { ADCS_EVENT_SHAPE, adcsTimelineItems, drawMarker } from '../ui/glyphs';
+import { renderLegend, type LegendHandle } from '../ui/legend';
+import { AdcsChart, PLOTS } from './charts';
+import { StatusBar } from './StatusBar';
 import { modeName } from './theme';
 
-const FONT_FAMILY = '"Schibsted Grotesk Variable", system-ui, sans-serif';
+
 
 export interface PanelHandlers {
   onStart(params: SessionParams): void;
@@ -46,6 +51,8 @@ export interface PanelRoots {
   plots: [HTMLElement, HTMLElement, HTMLElement, HTMLElement];
   banner: HTMLElement;
   toasts: HTMLElement;
+  /** The ADCS slot of the top bar (session state, time, orbit, speed). */
+  status: HTMLElement;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -208,7 +215,6 @@ class TransportPanel {
   private readonly slider: HTMLInputElement;
   private readonly speedText: HTMLElement;
   private readonly stepBtns: HTMLButtonElement[] = [];
-  private readonly stateText: HTMLElement;
   private connected = false;
   private playing = false;
   private done = false;
@@ -222,9 +228,6 @@ class TransportPanel {
     const b = body(root);
     this.playBtn = el('button', 'primary wide', 'Play');
     this.resetBtn = el('button', undefined, 'Reset');
-    this.stateText = el('span', 'chip transport-state');
-    (root.querySelector('.card-head') ?? b).append(this.stateText);
-    this.stateText.classList.add('push');
     const r1 = el('div', 'row');
     r1.append(this.playBtn, this.resetBtn);
 
@@ -304,7 +307,6 @@ class TransportPanel {
     this.slider.disabled = !on;
     const canStep = on && !this.playing && !this.done;
     for (const b of this.stepBtns) b.disabled = !canStep;
-    this.stateText.textContent = !on ? 'no session' : this.done ? 'run complete' : this.playing ? 'running' : 'paused';
     const actual = this.speedActual !== null && this.playing ? fmtSpeed(this.speedActual) : DASH;
     this.speedText.textContent = `set ${fmtSpeed(this.speedSet)} / actual ${actual}`;
     if (!this.slider.matches(':active')) this.slider.value = String(Math.round(speedToSlider(this.speedSet)));
@@ -405,46 +407,88 @@ class Readouts {
   private readonly badge: HTMLElement;
   private readonly light: HTMLElement;
   private readonly dump: HTMLElement;
+  private modeHelp: HTMLElement[] = []; // [DETUMBLE tip button, POINTING tip button]; only the current mode's shows
   private eclipseText = DASH;
 
   constructor(root: HTMLElement) {
-    const pills = el('div', 'ro-pills');
-    const grid = el('div', 'readout-grid');
-    body(root).append(pills, grid);
-    const pill = (key: string, cls: string, title: string): HTMLElement => {
+    const b = body(root);
+    b.classList.add('ro-body');
+
+    // Status: the three state chips, each with the help of what it names.
+    const status = readoutGroup('Status');
+    const chips = el('div', 'ro-chips');
+    const chip = (key: string, cls: string, title: string, help: TermId[]): HTMLElement => {
+      const wrap = el('span', 'ro-chip');
       const e = el('span', cls, DASH);
       e.title = title;
-      pills.append(e);
+      wrap.append(e);
+      for (const h of help) appendHelp(wrap, h);
+      chips.append(wrap);
       this.vals.set(key, e);
       this.base.set(key, cls);
       return e;
     };
-    this.badge = pill('mode', 'readout-value badge', 'Control mode');
-    this.light = pill('light', 'readout-value pill-state', 'Illumination');
-    this.dump = pill('dump', 'readout-value pill-state', 'Momentum dumping');
-    const add = (key: string, label: string, title?: string, wide = false): void => {
-      const lab = el('span', 'readout-label', label);
-      if (title) lab.title = title;
-      const val = el('span', 'readout-value', DASH);
-      const cell = el('div', `ro${wide ? ' wide' : ''}`);
-      cell.append(lab, val);
-      grid.append(cell);
-      this.vals.set(key, val);
-      this.base.set(key, 'readout-value');
-    };
-    add('t', 't [s]');
-    add('orbit', 'orbits');
-    add('triad', 'TRIAD init [s]');
-    add('nadir', 'nadir err [°]', 'Nadir pointing error');
-    add('estNadir', 'est. nadir [°]', 'Estimated nadir pointing error');
-    add('know', 'knowledge [°]', 'Attitude knowledge error');
-    add('sigma3', '3σ [°]', '3 × the filter attitude sigma');
-    add('rate', 'rate [°/s]', 'Body rate |ω|');
-    add('eclipse', 'eclipse [% run]', 'Share of the run spent in eclipse');
-    add('wheelFrac', 'wheels [% max]', 'Wheel speed as a share of the maximum');
-    add('w', 'ω̂ est. [°/s]', 'Estimated body rate', true);
-    add('wheel', 'wheels [rpm]', undefined, true);
-    add('m', 'dipole m [A·m²]', undefined, true);
+    this.badge = chip('mode', 'readout-value badge', 'Control mode', ['detumble', 'pointing']);
+    this.modeHelp = [...(this.badge.parentElement?.querySelectorAll<HTMLElement>('button.help') ?? [])];
+    if (this.modeHelp[1]) this.modeHelp[1].hidden = true;
+    this.light = chip('light', 'readout-value pill-state', 'Illumination', ['eclipse']);
+    this.dump = chip('dump', 'readout-value pill-state', 'Momentum dumping', ['dumping']);
+    status.section.replaceChildren(status.section.firstElementChild as Element, chips);
+
+    const groups: { heading: string; rows: RowSpec[] }[] = [
+      {
+        heading: 'Time',
+        rows: [
+          { key: 't', label: 'Sim time', unit: 's' },
+          { key: 'orbit', label: 'Orbits completed' },
+          { key: 'triad', label: 'TRIAD start', unit: 's', help: 'triad' },
+        ],
+      },
+      {
+        heading: 'Pointing',
+        rows: [
+          { key: 'nadir', label: 'Nadir pointing error', unit: '°', help: 'nadir', title: 'Nadir pointing error' },
+          { key: 'estNadir', label: 'Estimated nadir error', unit: '°', help: 'estNadir', title: 'Estimated nadir pointing error' },
+        ],
+      },
+      {
+        heading: 'Attitude knowledge',
+        rows: [
+          { key: 'know', label: 'Knowledge error', unit: '°', help: 'knowledge', title: 'Attitude knowledge error' },
+          { key: 'sigma3', label: 'Filter 3σ bound', unit: '°', help: 'sigma3', title: '3 × the filter attitude sigma' },
+        ],
+      },
+      {
+        heading: 'Motion',
+        rows: [
+          { key: 'rate', label: 'Body rate |ω|', unit: '°/s', help: 'rate', title: 'Body rate |ω|' },
+          { key: 'w', label: 'Estimated rate ω̂ x, y, z', unit: '°/s', vec: true, title: 'Estimated body rate' },
+        ],
+      },
+      {
+        heading: 'Actuators',
+        rows: [
+          { key: 'wheel', label: 'Wheel speeds x, y, z', unit: 'rpm', vec: true },
+          { key: 'wheelFrac', label: 'Wheel use', unit: 'of max', help: 'wheelUse', title: 'Wheel speed as a share of the maximum' },
+          { key: 'm', label: 'Magnetorquer dipole x, y, z', unit: 'A·m²', help: 'dipole', vec: true },
+        ],
+      },
+      {
+        heading: 'Orbit',
+        rows: [{ key: 'eclipse', label: 'Eclipse share of run', unit: 'of run', help: 'eclipse', title: 'Share of the run spent in eclipse' }],
+      },
+    ];
+    b.append(status.section);
+    for (const g of groups) {
+      const grp = readoutGroup(g.heading);
+      for (const spec of g.rows) {
+        const r = readoutRow(spec, DASH);
+        grp.list.append(r.row);
+        this.vals.set(spec.key, r.value);
+        this.base.set(spec.key, 'readout-value');
+      }
+      b.append(grp.section);
+    }
   }
 
   setInfo(info: Info): void {
@@ -479,6 +523,7 @@ class Readouts {
       this.cache.set('mode', modeTxt);
       this.badge.textContent = modeTxt;
       this.badge.className = `readout-value badge ${f.mode === 1 ? 'pointing' : 'detumble'}`;
+      this.modeHelp.forEach((b, i) => (b.hidden = i !== (f.mode === 1 ? 1 : 0)));
     }
     const lightTxt = f.lit ? 'Sunlit' : 'Eclipse';
     if (this.cache.get('light') !== lightTxt) {
@@ -508,6 +553,8 @@ class Readouts {
 class Timeline {
   private readonly canvas = el('canvas', 'timeline-canvas');
   private readonly ctx: CanvasRenderingContext2D | null;
+  private readonly legend: LegendHandle;
+  private describedAt = -Infinity;
   private info: Info | null = null;
   private w = 0;
   private h = 0;
@@ -515,27 +562,50 @@ class Timeline {
   private last: { t: number; segments: ModeSegment[]; events: FrameEvents | null } = { t: 0, segments: [], events: null };
 
   constructor(root: HTMLElement) {
-    root.append(this.canvas);
+    // DOM legend row above the canvas (the same legend system as the plots), then the canvas band.
+    const legendHost = el('div', 'timeline-legend');
+    this.legend = renderLegend(adcsTimelineItems(dataColors(), chromeColors()), { surface: 'panel' });
+    legendHost.append(this.legend.el);
+    const canvasHost = el('div', 'timeline-body');
+    canvasHost.append(this.canvas);
+    root.append(legendHost, canvasHost);
     this.ctx = this.canvas.getContext('2d');
+    this.canvas.setAttribute('role', 'img');
+    this.canvas.setAttribute('aria-label', timelineSummary(null, [], null, 0));
     new ResizeObserver(() => {
       this.dpr = window.devicePixelRatio || 1;
-      this.w = Math.max(1, Math.floor(root.clientWidth));
-      this.h = Math.max(1, Math.floor(root.clientHeight));
+      this.w = Math.max(1, Math.floor(canvasHost.clientWidth));
+      this.h = Math.max(1, Math.floor(canvasHost.clientHeight));
       this.canvas.width = Math.round(this.w * this.dpr);
       this.canvas.height = Math.round(this.h * this.dpr);
       this.draw();
-    }).observe(root);
+    }).observe(canvasHost);
+  }
+
+  /** Mode change: the legend glyphs take the new palette (the canvas is redrawn by the caller). */
+  recolor(): void {
+    this.legend.setColors(adcsTimelineItems(dataColors(), chromeColors()));
   }
 
   setInfo(info: Info | null): void {
     this.info = info;
     this.last = { t: 0, segments: [], events: null };
     this.draw();
+    this.describe(true);
   }
 
   update(t: number, segments: ModeSegment[], events: FrameEvents | null): void {
     this.last = { t, segments, events };
     this.draw();
+    this.describe(false);
+  }
+
+  /** Text alternative of the canvas (`role="img"`), refreshed at most once per second. */
+  private describe(force: boolean): void {
+    const now = performance.now();
+    if (!force && now - this.describedAt < 1000) return;
+    this.describedAt = now;
+    this.canvas.setAttribute('aria-label', timelineSummary(this.info, this.last.segments, this.last.events, this.last.t));
   }
 
   draw(): void {
@@ -545,31 +615,13 @@ class Timeline {
     g.clearRect(0, 0, this.w, this.h);
     const c = chromeColors(); // the active mode's card / band / marker colours
     const d = dataColors();
-    g.font = `12px ${FONT_FAMILY}`;
+    g.font = `12px ${FONT_UI}`;
     g.textBaseline = 'middle';
     const x0 = 12;
     const x1 = this.w - 42; // room at the right for the unit label after the last tick
-    const bandTop = 18;
-    const bandBot = Math.max(bandTop + 20, this.h - 16);
+    const bandTop = 4;
+    const bandBot = Math.max(bandTop + 20, this.h - 18); // tick numbers sit 10 px below it, inside the canvas
     const info = this.info;
-
-    // legend row
-    let lx = x0;
-    const swatch = (color: string, label: string) => {
-      g.fillStyle = color;
-      g.fillRect(lx, 4, 9, 9);
-      g.fillStyle = c.dim;
-      g.textAlign = 'left';
-      g.fillText(label, lx + 13, 9);
-      lx += 13 + g.measureText(label).width + 14;
-    };
-    swatch(c.eclipse, 'eclipse');
-    swatch(d.detumble, 'detumble');
-    swatch(d.pointing, 'pointing');
-    swatch(d.estimate, 'TRIAD init');
-    swatch(c.marker, 'switch');
-    swatch(d.danger, 'fallback');
-    swatch(d.kick, 'kick');
 
     // band background
     g.fillStyle = c.band;
@@ -589,7 +641,8 @@ class Timeline {
       g.strokeRect(r.x + 0.5, bandTop + 1.5, Math.max(1, r.w - 1), bandBot - bandTop - 3);
     }
 
-    // orbit ticks
+    // orbit ticks (numerals in mono)
+    g.font = `12px ${FONT_MONO}`;
     g.fillStyle = c.dim;
     g.strokeStyle = c.tick;
     for (const tk of orbitTicks(tEnd, info.period_s)) {
@@ -603,6 +656,7 @@ class Timeline {
     }
     g.textAlign = 'left';
     g.fillText('orbit', x1 + 12, bandBot + 10);
+    g.font = `12px ${FONT_UI}`;
 
     // mode strip along the bottom of the band
     const stripH = 7;
@@ -632,29 +686,15 @@ class Timeline {
         // Triangle at the bottom of the lane: a fallback usually lands < 1 px after its kick,
         // whose dot sits at the top, so both stay visible.
         const x = vline(t, d.danger);
-        g.fillStyle = d.danger;
-        g.beginPath();
-        g.moveTo(x - 4, markBot);
-        g.lineTo(x + 4, markBot);
-        g.lineTo(x, markBot - 6);
-        g.fill();
+        drawMarker(g, ADCS_EVENT_SHAPE.fallback, x, markBot - 4, 8, d.danger);
       }
       for (const k of ev.kicks) {
         const x = vline(k.t, d.kick);
-        g.fillStyle = d.kick;
-        g.beginPath();
-        g.arc(x, markTop + 3, 3, 0, 2 * Math.PI);
-        g.fill();
+        drawMarker(g, ADCS_EVENT_SHAPE.kick, x, markTop + 4, 8, d.kick);
       }
       if (ev.t_init !== null) {
         const x = vline(ev.t_init, d.estimate);
-        g.fillStyle = d.estimate;
-        g.beginPath();
-        g.moveTo(x, markTop + 1);
-        g.lineTo(x + 4, markTop + 5);
-        g.lineTo(x, markTop + 9);
-        g.lineTo(x - 4, markTop + 5);
-        g.fill();
+        drawMarker(g, ADCS_EVENT_SHAPE.tInit, x, markTop + 5, 8, d.estimate);
       }
       g.lineWidth = 1;
     }
@@ -671,208 +711,6 @@ class Timeline {
   }
 }
 
-// ===================================================================== plots
-
-interface SeriesSpec {
-  label: string;
-  col: number; // index into History.columns()
-  color: keyof DataColors; // role; resolved against the active mode when the chart is built
-  dash?: number[];
-  fmt: (v: number) => string;
-}
-
-interface PlotSpec {
-  title: string;
-  log: boolean;
-  series: SeriesSpec[];
-  thresholds?: boolean;
-}
-
-const LOG_FLOOR = 1e-3;
-
-const PLOTS: PlotSpec[] = [
-  {
-    title: 'Nadir pointing error [°]',
-    log: true,
-    series: [
-      { label: 'true', col: 1, color: 'nadir', fmt: fmtAngle },
-      { label: 'estimated', col: 2, color: 'estimate', dash: [6, 4], fmt: fmtAngle },
-    ],
-  },
-  {
-    title: 'Knowledge error and 3σ [°]',
-    log: true,
-    series: [
-      { label: 'knowledge error', col: 3, color: 'estimate', fmt: fmtAngle },
-      { label: '3σ', col: 4, color: 'sigma3', dash: [6, 4], fmt: fmtAngle },
-    ],
-  },
-  {
-    title: 'Body rate [°/s]',
-    log: true,
-    thresholds: true,
-    series: [{ label: '|ω|', col: 5, color: 'nadir', fmt: (v) => fmtFixed(v, 4) }],
-  },
-  {
-    title: 'Wheel speeds [rpm]',
-    log: false,
-    series: [
-      { label: 'x', col: 6, color: 'axisX', fmt: (v) => v.toFixed(0) },
-      { label: 'y', col: 7, color: 'axisY', fmt: (v) => v.toFixed(0) },
-      { label: 'z', col: 8, color: 'axisZ', fmt: (v) => v.toFixed(0) },
-    ],
-  },
-];
-
-function tickLabel(v: number): string {
-  const a = Math.abs(v);
-  if (a >= 1000) return `${+(v / 1000).toFixed(1)}k`;
-  return String(+v.toFixed(2));
-}
-
-class PlotStrip {
-  private readonly host = el('div', 'plot-host');
-  private u: uPlot | null = null;
-  private info: Info | null = null;
-  private lastCols: Columns | null = null;
-  private readonly spec: PlotSpec;
-
-  constructor(root: HTMLElement, spec: PlotSpec) {
-    this.spec = spec;
-    const head = el('div', 'card-head');
-    head.append(el('h2', undefined, spec.title));
-    root.append(head, this.host);
-    this.build();
-    new ResizeObserver(() => this.resize()).observe(this.host);
-  }
-
-  /** Mode change: rebuild the chart with the new axis / grid / series colours and refill it from the last data. */
-  rebuild(): void {
-    this.u?.destroy();
-    this.u = null;
-    this.build();
-    if (this.lastCols) this.setData(this.lastCols);
-  }
-
-  redraw(): void {
-    this.u?.redraw();
-  }
-
-  setInfo(info: Info | null): void {
-    this.info = info;
-    this.u?.redraw();
-  }
-
-  private thresholds(): { v: number; color: string; label: string }[] {
-    if (!this.spec.thresholds || !this.info) return [];
-    const d = dataColors();
-    return [
-      { v: this.info.detumble_threshold_deg_s, color: d.detumble, label: `detumble ${this.info.detumble_threshold_deg_s} °/s` },
-      { v: this.info.safe_rate_deg_s, color: d.danger, label: `safe rate ${this.info.safe_rate_deg_s} °/s` },
-    ];
-  }
-
-  private build(): void {
-    const spec = this.spec;
-    const c = chromeColors();
-    const d = dataColors();
-    // axis text dim, grid a faint tint of the card's block colour, ticks hidden (spec §3)
-    const axisBase = { stroke: c.dim, grid: { stroke: c.grid, width: 1 }, ticks: { show: false }, font: `12px ${FONT_FAMILY}` };
-    const opts: uPlot.Options = {
-      width: Math.max(100, this.host.clientWidth),
-      height: Math.max(80, this.host.clientHeight - 22),
-      padding: [8, 14, 0, 0],
-      legend: { show: true, live: true },
-      cursor: { sync: { key: 'adcs', setSeries: false }, drag: { x: false, y: false }, points: { show: false } },
-      scales: {
-        x: {
-          time: false,
-          range: (_u, min, max) => timeRange(min, max, this.info?.t_end_s ?? 0),
-        },
-        y: spec.log
-          ? {
-              distr: 3,
-              log: 10,
-              range: (_u, min, max) => logRange(min, max, LOG_FLOOR, this.thresholds().map((x) => x.v)),
-            }
-          : {
-              range: (_u, min, max) => {
-                if (!Number.isFinite(min) || !Number.isFinite(max)) return [-1000, 1000];
-                const m = Math.max(Math.abs(min), Math.abs(max), 100);
-                return [-m * 1.08, m * 1.08];
-              },
-            },
-      },
-      axes: [
-        { ...axisBase, size: 24, values: (_u, splits) => splits.map(tickLabel) },
-        { ...axisBase, size: 54, values: (_u, splits) => splits.map((v) => (v === null ? '' : tickLabel(v))) },
-      ],
-      series: [
-        { label: 't [s]', value: (_u, v) => (v === null || v === undefined ? DASH : `${v.toFixed(0)} s`) },
-        ...spec.series.map<uPlot.Series>((s) => ({
-          label: s.label,
-          stroke: d[s.color],
-          width: 2,
-          dash: s.dash,
-          spanGaps: false,
-          points: { show: false },
-          value: (_u, v) => (v === null || v === undefined ? DASH : s.fmt(v)),
-        })),
-      ],
-      hooks: {
-        draw: [
-          (u) => {
-            const th = this.thresholds();
-            if (!th.length) return;
-            const ctx = u.ctx;
-            const dpr = window.devicePixelRatio || 1;
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height);
-            ctx.clip();
-            ctx.setLineDash([6 * dpr, 4 * dpr]);
-            ctx.lineWidth = dpr;
-            ctx.font = `${11 * dpr}px ${FONT_FAMILY}`;
-            ctx.textBaseline = 'bottom';
-            ctx.textAlign = 'left';
-            for (const t of th) {
-              const y = u.valToPos(t.v, 'y', true);
-              ctx.strokeStyle = t.color;
-              ctx.fillStyle = t.color;
-              ctx.beginPath();
-              ctx.moveTo(u.bbox.left, y);
-              ctx.lineTo(u.bbox.left + u.bbox.width, y);
-              ctx.stroke();
-              ctx.fillText(t.label, u.bbox.left + 6 * dpr, y - 2 * dpr);
-            }
-            ctx.restore();
-          },
-        ],
-      },
-    };
-    const empty: uPlot.AlignedData = [[], ...spec.series.map(() => [])] as unknown as uPlot.AlignedData;
-    this.u = new uPlot(opts, empty, this.host);
-  }
-
-  private resize(): void {
-    if (!this.u) return;
-    const w = Math.floor(this.host.clientWidth);
-    const h = Math.floor(this.host.clientHeight) - 22; // legend row
-    if (w > 20 && h > 40) this.u.setSize({ width: w, height: h });
-  }
-
-  setData(cols: Columns): void {
-    this.lastCols = cols;
-    if (!this.u) return;
-    const t = cols[0] as number[];
-    const rest = this.spec.series.map((s) => {
-      const c = cols[s.col];
-      return this.spec.log ? c.map((v) => clampLog(v, LOG_FLOOR)) : c;
-    });
-    this.u.setData([t, ...rest] as unknown as uPlot.AlignedData, true);
-  }
-}
-
 // ===================================================================== composite
 
 export class Panels {
@@ -881,7 +719,14 @@ export class Panels {
   private readonly kick: KickPanel;
   private readonly readouts: Readouts;
   private readonly timeline: Timeline;
-  private readonly plots: PlotStrip[];
+  private readonly cards: AdcsChart[];
+  private readonly expandBtns: HTMLButtonElement[] = [];
+  private readonly summaryEls: HTMLElement[] = [];
+  private summaryAt = -Infinity;
+  /** Every chart that must follow data, theme and fonts: the four cards plus the chart of the open dialog. */
+  private readonly live = new Set<AdcsChart>();
+  private lastCols: Columns | null = null;
+  private readonly status: StatusBar;
   private readonly banner: HTMLElement;
   private readonly toasts: HTMLElement;
   private info: Info | null = null;
@@ -889,20 +734,29 @@ export class Panels {
   constructor(roots: PanelRoots, handlers: PanelHandlers) {
     this.banner = roots.banner;
     this.toasts = roots.toasts;
+    this.status = new StatusBar(roots.status);
     this.form = new FormPanel(roots.form, handlers);
     this.transport = new TransportPanel(roots.transport, handlers);
     this.kick = new KickPanel(roots.kick, handlers, (m) => this.toast(m));
     this.readouts = new Readouts(roots.readouts);
     this.timeline = new Timeline(roots.timeline);
-    this.plots = roots.plots.map((r, i) => new PlotStrip(r, PLOTS[i]));
+    this.cards = roots.plots.map((r, i) => {
+      const spec = PLOTS[i];
+      const parts = buildPlotCard(r, { title: spec.title, unit: spec.unit }, () => this.expand(i));
+      this.expandBtns.push(parts.expandBtn);
+      this.summaryEls.push(parts.summaryEl);
+      return new AdcsChart(parts.host, spec, { variant: 'card', info: () => this.info, legendHost: parts.legendHost });
+    });
+    for (const c of this.cards) this.live.add(c);
     // Mode change: charts are rebuilt with the new palette from the stored data (no reload, no lost history).
     onThemeChange(() => {
-      for (const p of this.plots) p.rebuild();
+      for (const c of this.live) c.rebuild();
+      this.timeline.recolor();
       this.timeline.draw();
     });
     // Canvas text drawn before the web font arrived used the fallback font.
     whenFontsReady(() => {
-      for (const p of this.plots) p.redraw();
+      for (const c of this.live) c.redraw();
       this.timeline.draw();
     });
   }
@@ -926,14 +780,18 @@ export class Panels {
     this.form.setSessionActive(true);
     this.transport.setConnected(true);
     this.transport.setState({ playing: status.playing, done: status.done, speedSet: status.speed, speedActual: null });
+    this.status.setSession(true, status.playing, status.done);
+    this.status.clearValues();
     this.kick.setEnabled(!status.done);
     this.readouts.clear();
     this.readouts.setInfo(info);
     this.timeline.setInfo(info);
-    for (const p of this.plots) p.setInfo(info);
+    for (const c of this.live) c.setInfo(info);
   }
 
   onClosed(): void {
+    this.status.setSession(false, false, false);
+    this.status.clearValues();
     this.transport.setConnected(false);
     this.kick.setEnabled(false);
   }
@@ -942,18 +800,61 @@ export class Panels {
     this.readouts.update(f);
     this.transport.setState({ playing: f.playing, done: f.done, speedSet: f.speed_set, speedActual: f.speed_actual });
     this.kick.setEnabled(!f.done);
+    this.status.setSession(true, f.playing, f.done);
+    this.status.setFrame(f.t, f.orbit, f.speed_actual, f.playing);
   }
 
   /** Throttled by the caller (about 8 Hz): timeline and plot strips. */
   refreshCharts(cols: Columns, t: number, segments: ModeSegment[], events: FrameEvents | null): void {
     this.timeline.update(t, segments, events);
-    for (const p of this.plots) p.setData(cols);
+    this.lastCols = cols;
+    for (const c of this.live) c.setData(cols);
+    this.refreshSummaries(false);
+  }
+
+  /** Hidden text alternatives of the plot cards: the latest values, at most every 2 s. */
+  private refreshSummaries(force: boolean): void {
+    const now = performance.now();
+    if (!force && now - this.summaryAt < 2000) return;
+    this.summaryAt = now;
+    this.cards.forEach((c, i) => {
+      this.summaryEls[i].textContent = c.summaryText();
+    });
+  }
+
+  /** The sheet settled (or the layout changed): uPlot caches its bounding rect, so refresh it on every chart. */
+  syncCharts(): void {
+    for (const c of this.live) c.syncRect();
+  }
+
+  /** Open the dialog with a large, zoomable chart of plot `i` (it keeps streaming while open). */
+  expand(i: number): void {
+    const spec = PLOTS[i];
+    let chart: AdcsChart | null = null;
+    chartDialog().open({
+      title: spec.title,
+      unit: spec.unit,
+      help: CHART_HELP[spec.id],
+      returnFocus: this.expandBtns[i],
+      mount: (chartHost, legendHost) => {
+        const c = new AdcsChart(chartHost, spec, { variant: 'large', info: () => this.info, legendHost });
+        chart = c;
+        this.live.add(c);
+        if (this.lastCols) c.setData(this.lastCols);
+        return { chart: c, onZoom: (cb) => c.onZoom(cb) };
+      },
+      onClose: () => {
+        if (chart) this.live.delete(chart);
+      },
+    });
   }
 
   clearCharts(): void {
     this.timeline.update(0, [], null);
     const empty: Columns = Array.from({ length: 9 }, () => []);
-    for (const p of this.plots) p.setData(empty);
+    this.lastCols = empty;
+    for (const c of this.live) c.setData(empty);
+    this.refreshSummaries(true);
   }
 
   setBanner(message: string | null): void {

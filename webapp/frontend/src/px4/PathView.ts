@@ -8,6 +8,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { nedToWorld } from '../math/ned';
 import { COLORS } from '../adcs/theme';
+import { VIEW_LEGENDS } from '../ui/glyphs';
+import { renderLegend } from '../ui/legend';
 import { createViewport, disposeObject, labelElement, observeSize } from '../adcs/viewport';
 import { finiteRow, pathSegments } from './series';
 import type { PathSegment } from './series';
@@ -44,7 +46,7 @@ export class PathView {
   private dirty = true;
 
   constructor(container: HTMLElement) {
-    const vp = createViewport(container);
+    const vp = createViewport(container, 'Path view: the flight path of our estimate and of the EKF2 reference, in north-east-down metres');
     this.renderer = vp.renderer;
     this.labels.domElement.className = 'label-layer';
     vp.body.append(this.labels.domElement);
@@ -66,19 +68,9 @@ export class PathView {
   }
 
   private buildLegend(): HTMLElement {
-    const items: [string, string][] = [
-      ['ours', COLORS.ours],
-      ['EKF2 (reference), dashed', COLORS.ekf2],
-      ['start', COLORS.nadir],
-    ];
-    const el = document.createElement('div');
-    el.className = 'vp-legend';
-    for (const [name, color] of items) {
-      const s = document.createElement('span');
-      s.innerHTML = `<i style="background:${color}"></i>${name}`;
-      el.append(s);
-    }
-    return el;
+    const lg = renderLegend(VIEW_LEGENDS.path(COLORS), { surface: 'screen' });
+    lg.el.classList.add('vp-legend');
+    return lg.el;
   }
 
   /** Release the geometry of the previous replay. */

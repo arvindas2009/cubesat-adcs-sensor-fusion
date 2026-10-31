@@ -6,6 +6,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { bodyInEciToWorld, earthRotationY, eciToWorld, zUpToWorld } from '../math/frames';
 import type { Frame, Info } from '../types';
 import { AXIS_COLORS, COLORS } from './theme';
+import { ORBIT_VIEW_COLORS, VIEW_LEGENDS } from '../ui/glyphs';
+import { renderLegend } from '../ui/legend';
 import { createViewport, observeSize } from './viewport';
 
 const SCALE = 1e-6; // m -> world units (1 unit = 1000 km)
@@ -72,7 +74,7 @@ export class OrbitView {
   private lastT = -Infinity;
 
   constructor(container: HTMLElement) {
-    const vp = createViewport(container);
+    const vp = createViewport(container, 'Orbit view: the Earth, the first orbit and recent trail of the satellite, and the direction of the Sun');
     this.renderer = vp.renderer;
 
     // Earth: plain shaded sphere first; the texture replaces the colour when it has loaded.
@@ -126,7 +128,7 @@ export class OrbitView {
     this.scene.add(makeStars());
 
     // Satellite marker (body-fixed group) with a small triad.
-    this.satMaterial = new THREE.MeshBasicMaterial({ color: 0xe8eefc, transparent: true });
+    this.satMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(ORBIT_VIEW_COLORS.satellite), transparent: true });
     this.satBox = new THREE.Mesh(new THREE.BoxGeometry(MARKER_LENGTH * 0.3, MARKER_LENGTH * 0.3, MARKER_LENGTH), this.satMaterial);
     this.sat.add(this.satBox);
     const dirs = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
@@ -144,7 +146,7 @@ export class OrbitView {
     const tg = new THREE.BufferGeometry();
     tg.setAttribute('position', new THREE.BufferAttribute(this.trailPos, 3));
     tg.setDrawRange(0, 0);
-    this.trail = new THREE.Line(tg, new THREE.LineBasicMaterial({ color: 0x8fc2ff, transparent: true, opacity: 0.85 }));
+    this.trail = new THREE.Line(tg, new THREE.LineBasicMaterial({ color: new THREE.Color(ORBIT_VIEW_COLORS.trail), transparent: true, opacity: 0.85 }));
     this.trail.frustumCulled = false;
     this.scene.add(this.trail);
 
@@ -160,6 +162,9 @@ export class OrbitView {
     this.followBtn.className = 'vp-btn';
     this.followBtn.addEventListener('click', () => this.setFollow(!this.follow));
     vp.overlay.append(this.followBtn);
+    const legend = renderLegend(VIEW_LEGENDS.orbit(COLORS), { surface: 'screen' });
+    legend.el.classList.add('vp-legend');
+    vp.overlay.append(legend.el);
     this.refreshFollowButton();
 
     observeSize(vp.body, (w, h) => {
@@ -177,7 +182,7 @@ export class OrbitView {
       this.ring.geometry.dispose();
     }
     const pts = info.orbit_track_eci_m.map((r) => eciToWorld(r, SCALE));
-    this.ring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x3f6fb0, transparent: true, opacity: 0.55 }));
+    this.ring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: new THREE.Color(ORBIT_VIEW_COLORS.ring), transparent: true, opacity: 0.55 }));
     this.scene.add(this.ring);
     this.clearTrail();
     this.dirty = true;
@@ -223,7 +228,7 @@ export class OrbitView {
 
     if (f.lit !== this.lit) {
       this.lit = f.lit;
-      this.satMaterial.color.set(f.lit ? 0xe8eefc : 0x3b4357);
+      this.satMaterial.color.set(f.lit ? ORBIT_VIEW_COLORS.satellite : ORBIT_VIEW_COLORS.satelliteDim);
       this.satMaterial.opacity = f.lit ? 1 : 0.8;
       for (const a of this.triad) {
         (a.line.material as THREE.LineBasicMaterial).opacity = f.lit ? 1 : 0.35;
@@ -260,6 +265,11 @@ export class OrbitView {
       }
       this.controls.target.copy(this.satWorld);
     }
+    this.dirty = true;
+  }
+
+  /** Redraw on the next render() (after the view was hidden or covered while its size or content changed). */
+  invalidate(): void {
     this.dirty = true;
   }
 

@@ -1,30 +1,137 @@
-// Pure (DOM-free) part of the visual theme "Colour blocks" (docs/specs/ui_theme.md §1, §3): the data
-// colour roles for each mode, the colours the canvas charts use, stored-choice parsing and the WCAG
-// contrast helpers the tests use. The CSS variables in src/style.css mirror these values (a test
+// Pure (DOM-free) part of the visual theme "Flight-deck console" (docs/specs/ui_console.md §1): the UI
+// tokens, the data colour roles for each mode, the colours the canvas charts use, stored-choice parsing and
+// the WCAG contrast helpers the tests use. The CSS variables in src/style.css mirror these values (a test
 // compares them); the DOM-bound runtime (apply / toggle / subscribe) lives in ./index.ts.
 
 export type Theme = 'light' | 'dark';
 
 export const THEME_STORAGE_KEY = 'theme';
 
-/** Brand palette (spec §1). Named here so tests and the 3D screens share one source. */
-export const BRAND = {
-  plum: '#3A2236',
-  sunflower: '#FFC531',
-  mint: '#3DDC97',
-  periwinkle: '#7C80EE',
-  bubblegum: '#EBA3D6',
-  ink: '#1C1220',
-  paper: '#F3F3F6',
-} as const;
+/** Fonts (spec §1.4); mirrored as `--font-ui` / `--font-mono` and used by the canvas code. */
+export const FONT_UI = '"Barlow Semi Condensed", system-ui, sans-serif';
+export const FONT_MONO = '"JetBrains Mono Variable", ui-monospace, Consolas, monospace';
 
-/** 3D viewports are dark "screens" in both modes (spec §1). */
+/** UI tokens of one mode (spec §1.1). `data` and `neutral` are the data accent and its grey. */
+export interface UiTokens {
+  page: string;
+  bar: string;
+  panel: string;
+  inset: string;
+  edge: string;
+  edgeInput: string;
+  bracket: string;
+  text: string;
+  dim: string;
+  action: string;
+  actionText: string;
+  onAction: string;
+  actionHover: string;
+  data: string;
+  neutral: string;
+  alarm: string;
+  ok: string;
+  okText: string;
+  focus: string;
+  fillDetumble: string;
+  fillPointing: string;
+  fillSunlit: string;
+  fillDump: string;
+  fillEclipse: string;
+}
+
+/** CSS variable that mirrors each UI token (the test parses both mode blocks of style.css). */
+export const UI_CSS_NAMES: Record<keyof UiTokens, string> = {
+  page: '--page',
+  bar: '--bar',
+  panel: '--panel',
+  inset: '--inset',
+  edge: '--edge',
+  edgeInput: '--edge-input',
+  bracket: '--bracket',
+  text: '--text',
+  dim: '--dim',
+  action: '--action',
+  actionText: '--action-text',
+  onAction: '--on-action',
+  actionHover: '--action-hover',
+  data: '--data',
+  neutral: '--neutral',
+  alarm: '--alarm',
+  ok: '--ok',
+  okText: '--ok-text',
+  focus: '--focus',
+  fillDetumble: '--fill-detumble',
+  fillPointing: '--fill-pointing',
+  fillSunlit: '--fill-sunlit',
+  fillDump: '--fill-dump',
+  fillEclipse: '--fill-eclipse',
+};
+
+/** Text colour on the eclipse chip (the other chips carry `onAction` ink), the same in both modes. */
+export const FILL_ECLIPSE_TEXT = '#E6E9ED';
+
+export const UI: Record<Theme, UiTokens> = {
+  dark: {
+    page: '#0D0F12',
+    bar: '#0A0C0F',
+    panel: '#15191E',
+    inset: '#0F1216',
+    edge: '#2A3038',
+    edgeInput: '#6B7480',
+    bracket: '#5A6472',
+    text: '#E6E9ED',
+    dim: '#9AA4B2',
+    action: '#FF8A1F',
+    actionText: '#FF8A1F',
+    onAction: '#0D0F12',
+    actionHover: '#FFA04A',
+    data: '#3FD0E0',
+    neutral: '#9AA4B2',
+    alarm: '#FF3B3B',
+    ok: '#46D36B',
+    okText: '#46D36B',
+    focus: '#FF8A1F',
+    fillDetumble: '#FFB020',
+    fillPointing: '#46D36B',
+    fillSunlit: '#FFD23F',
+    fillDump: '#B39BFF',
+    fillEclipse: '#05070A',
+  },
+  light: {
+    page: '#E9ECEF',
+    bar: '#F7F8FA',
+    panel: '#F7F8FA',
+    inset: '#FFFFFF',
+    edge: '#C5CBD3',
+    edgeInput: '#6B7480',
+    bracket: '#8A94A1',
+    text: '#14181D',
+    dim: '#4A5563',
+    action: '#D9600B',
+    actionText: '#A84800',
+    onAction: '#0D0F12',
+    actionHover: '#E8742A',
+    data: '#0B7C8A',
+    neutral: '#4A5563',
+    alarm: '#C81E1E',
+    ok: '#1E8A3E',
+    okText: '#176F31',
+    focus: '#D9600B',
+    fillDetumble: '#FFB020',
+    fillPointing: '#46D36B',
+    fillSunlit: '#FFD23F',
+    fillDump: '#B39BFF',
+    fillEclipse: '#05070A',
+  },
+};
+
+/** 3D viewports are dark "screens" in both modes (spec §1.1). */
 export const SCREEN = {
-  clear: '#24152A',
-  gridMajor: '#4A3350',
-  gridMinor: '#33223A',
-  text: '#F2EAF0',
-  textDim: '#CDBBCB',
+  clear: '#080A0D',
+  gridMajor: '#1F2730',
+  gridMinor: '#141A21',
+  text: '#E6E9ED',
+  textDim: '#9AA4B2',
 } as const;
 
 /** Colour roles (docs/specs/frontend.md §2) used by plots, markers and the timeline. */
@@ -74,20 +181,20 @@ const LIGHT: DataColors = {
   axisX: '#D63B3B',
   axisY: '#1A8F43',
   axisZ: '#2F6BE0',
-  estimate: '#0A7F94',
+  estimate: '#0B7C8A',
   sun: '#A87B00',
   field: '#6B4FD8',
-  nadir: '#3A2236',
+  nadir: '#4A5563',
   detumble: '#B86500',
-  pointing: '#0E8A56',
+  pointing: '#1E8A3E',
   kick: '#D4198F',
-  danger: '#C42B3B',
+  danger: '#C81E1E',
   ours: '#0B8F6E',
   ekf2: '#C0680A',
   sigma3: '#4F7F88',
   nisGpsPos: '#2F6BE0',
   nisGpsVel: '#6B4FD8',
-  nisBaro: '#3A2236',
+  nisBaro: '#4A5563',
   nisMag: '#D0305F',
 };
 
@@ -95,31 +202,31 @@ const DARK: DataColors = {
   axisX: '#FF5A5A',
   axisY: '#4FD96B',
   axisZ: '#4A8DFF',
-  estimate: '#2FD6E6',
+  estimate: '#3FD0E0',
   sun: '#FFD23F',
   field: '#B39BFF',
-  nadir: '#F2EAF0',
+  nadir: '#D7DCE3',
   detumble: '#FFB020',
-  pointing: '#3DDC97',
+  pointing: '#46D36B',
   kick: '#FF5FC4',
-  danger: '#FF5C6C',
+  danger: '#FF3B3B',
   ours: '#3DDC97',
   ekf2: '#FFB347',
   sigma3: '#7FB9C2',
   nisGpsPos: '#4A8DFF',
   nisGpsVel: '#B39BFF',
-  nisBaro: '#F2EAF0',
+  nisBaro: '#D7DCE3',
   nisMag: '#FF5C8A',
 };
 
 /** Colours for NIS sensors the server names but the table above does not (cycled). */
 const NIS_FALLBACK: Record<Theme, readonly string[]> = {
-  light: ['#0A7F94', '#A87B00', '#0E8A56', '#B35F0A'],
-  dark: ['#2FD6E6', '#FFD23F', '#3DDC97', '#FF8A3D'],
+  light: ['#0B7C8A', '#A87B00', '#1E8A3E', '#B35F0A'],
+  dark: ['#3FD0E0', '#FFD23F', '#46D36B', '#FF8A3D'],
 };
 
-/** Plot / timeline card colour (the card sits in the mint block): light tint, dark card (spec §1). */
-export const PLOT_CARD: Record<Theme, string> = { light: '#DDF8EB', dark: '#251826' };
+/** Plot / timeline card colour (`--panel`). */
+export const PLOT_CARD: Record<Theme, string> = { light: UI.light.panel, dark: UI.dark.panel };
 
 /** The role colours for the given mode. */
 export function dataColors(theme: Theme): DataColors {
@@ -149,31 +256,31 @@ export interface ChartChrome {
 const CHROME: Record<Theme, ChartChrome> = {
   light: {
     card: PLOT_CARD.light,
-    text: '#1C1220',
-    dim: '#5B4A58',
-    grid: '#BDF2DA', // faint tint of the mint block
-    tick: '#9ED9BF',
-    band: '#F6FDF9',
-    bandEdge: '#9ED9BF',
-    eclipse: '#3A2236',
-    eclipseEdge: '#1C1220',
-    excluded: '#C4E8D7',
-    cursor: '#1C1220',
-    marker: '#3A2236',
+    text: '#14181D',
+    dim: '#4A5563',
+    grid: '#E3E6EA',
+    tick: '#C5CBD3',
+    band: '#FFFFFF',
+    bandEdge: '#C5CBD3',
+    eclipse: '#3A4350',
+    eclipseEdge: '#14181D',
+    excluded: '#DDE1E6',
+    cursor: '#0D0F12',
+    marker: '#14181D',
   },
   dark: {
     card: PLOT_CARD.dark,
-    text: '#F2EAF0',
-    dim: '#B9A8B6',
-    grid: '#2A3F3D',
-    tick: '#3C5552',
-    band: '#1B111C',
-    bandEdge: '#3C5552',
-    eclipse: '#0A050B',
-    eclipseEdge: '#5B4060',
-    excluded: '#33243A',
+    text: '#E6E9ED',
+    dim: '#9AA4B2',
+    grid: '#232A32',
+    tick: '#3A434E',
+    band: '#0F1216',
+    bandEdge: '#2A3038',
+    eclipse: '#05070A',
+    eclipseEdge: '#5A6472',
+    excluded: '#262D36',
     cursor: '#FFFFFF',
-    marker: '#F2EAF0',
+    marker: '#E6E9ED',
   },
 };
 

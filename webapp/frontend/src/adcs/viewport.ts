@@ -9,18 +9,25 @@ export interface Viewport {
   readonly overlay: HTMLElement;
 }
 
-/** Create the canvas area (below the panel's <h2>) and a WebGL renderer sized to it. */
-export function createViewport(container: HTMLElement): Viewport {
+/**
+ * Create the canvas area (below the panel's <h2>) and a WebGL renderer sized to it. `label` is the static
+ * text alternative of the scene: `.vp-body` is the image, the canvas is hidden from assistive technology, and the
+ * overlay (buttons, legend) sits beside it, so its controls stay reachable.
+ */
+export function createViewport(container: HTMLElement, label: string): Viewport {
   const body = document.createElement('div');
   body.className = 'vp-body';
+  body.setAttribute('role', 'img');
+  body.setAttribute('aria-label', label);
   const overlay = document.createElement('div');
   overlay.className = 'vp-overlay';
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setClearColor(new THREE.Color(SCREEN.clear), 1); // dark plum "screen" in both modes
+  renderer.setClearColor(new THREE.Color(SCREEN.clear), 1); // near-black "screen" in both modes
   renderer.domElement.className = 'vp-canvas';
-  body.append(renderer.domElement, overlay);
-  container.append(body);
+  renderer.domElement.setAttribute('aria-hidden', 'true');
+  body.append(renderer.domElement);
+  container.append(body, overlay);
   return { body, renderer, overlay };
 }
 

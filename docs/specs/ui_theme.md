@@ -1,5 +1,7 @@
 # Spec: browser simulator visual theme "Colour blocks" (light + dark)
 
+> **Superseded by [`docs/specs/ui_console.md`](ui_console.md)** (the "Flight-deck console" look, light and dark). This "Colour blocks" theme is kept only as history; the tokens, fonts, layout and tests of `ui_console.md` are the contract now.
+
 Restyles `webapp/frontend` (both tabs). Behaviour, data, wire protocol and the colour **roles** of `docs/specs/frontend.md` §2 do not change. The page is still a visual aid only. The user asked for the vibe of a bold colour-block landing page (saturated sunflower / mint / plum / periwinkle / pink sections, big rounded shapes, pill buttons, clean grotesk type), in both light and dark mode. Do not copy any other site's logo, wordmark or copy.
 
 ## 1. Tokens

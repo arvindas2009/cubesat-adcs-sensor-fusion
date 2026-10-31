@@ -65,7 +65,7 @@ Exports (all pure; inputs are plain `number[]` or arrays of arrays, as on the wi
   * left about 62 % holds two 3D viewports stacked, OrbitView on top (about 55 %) and SatView below;
   * the right column holds the controls and readouts;
   * a full-width bottom band holds the mode timeline and the plots.
-* **Look.** A dark "mission console": a deep navy/near-black background, hairline panel borders, monospace tabular numerals for every readout, and colour roles that are consistent everywhere:
+* **Look.** The visual design (tokens, fonts, layout, light and dark mode) is specified in `docs/specs/ui_console.md`; the colour roles below are unchanged. In short, a "mission console": hairline panel borders, mono tabular numerals for every readout, and colour roles that are consistent everywhere:
   * body axes x/y/z red/green/blue;
   * the estimate is cyan and dashed/translucent;
   * Sun is warm yellow;

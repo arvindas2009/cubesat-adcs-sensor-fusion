@@ -192,7 +192,9 @@ Node 18+ is needed for the build; the server serves `webapp/frontend/dist`. The 
 
 ![PX4 replay browser check](webapp/docs/px4_replay_check.gif)
 
-**Tests.** `pytest` covers the server (`webapp/server/tests/`). `cd webapp\frontend; npm test` runs the frontend tests (131 vitest), including Python-generated fixtures that check the quaternion and frame conversions (ECI and NED) against `common.quaternion`.
+**Using the page.** Both tabs share one layout: the 3D views and the controls fill the window, and the timeline and plots sit in a sheet at the bottom. Scroll down (or PageDown, or the "Show plots" button) to raise the plots over the 3D views; scroll up to lower them. Zoom a 3D view with Ctrl + scroll, a trackpad pinch or a middle-button drag. The expand button on each plot opens it large, with drag-to-zoom (double-click resets) and a short "how to read this" note. The "?" buttons next to readouts explain the terms (TRIAD, 3σ, NIS, …). The sun/moon button in the top bar switches light and dark mode. Below 1100 px wide or 600 px tall the page falls back to normal scrolling.
+
+**Tests.** `pytest` covers the server (`webapp/server/tests/`). `cd webapp\frontend; npm test` runs the frontend tests (239 vitest), including Python-generated fixtures that check the quaternion and frame conversions (ECI and NED) against `common.quaternion`.
 
 
 ## Reproducibility check
