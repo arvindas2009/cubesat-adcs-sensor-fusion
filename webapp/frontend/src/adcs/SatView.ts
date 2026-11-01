@@ -11,6 +11,7 @@ import { AXIS_COLORS, COLORS } from './theme';
 import { VIEW_LEGENDS } from '../ui/glyphs';
 import { renderLegend } from '../ui/legend';
 import { createViewport, labelElement, observeSize } from './viewport';
+import { buildCubeSat } from '../models/cubesat';
 
 const UNIT = 10; // world units per metre (1 unit = 10 cm)
 const GRID_Y = -2.5;
@@ -226,15 +227,15 @@ export class SatView {
           metalness: 0.15,
         }),
     );
-    const geom = new THREE.BoxGeometry(sx, sy, sz);
-    this.body.add(new THREE.Mesh(geom, faces));
-    this.body.add(new THREE.LineSegments(new THREE.EdgesGeometry(geom), new THREE.LineBasicMaterial({ color: 0xcfdcf5, transparent: true, opacity: 0.8 })));
+    // Detailed 3U model (rails, wings, antennas, sensors) around the labelled bus box (models/cubesat.ts).
+    const sat = buildCubeSat({ size: [sx, sy, sz], bodyMaterials: faces });
+    this.body.add(sat.group);
 
     const half = [sx / 2, sy / 2, sz / 2];
     const dirs = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
     const names = ['x', 'y', 'z'];
     dirs.forEach((d, i) => {
-      const len = half[i] + 1.05;
+      const len = Math.max(half[i] + 1.05, sat.halfExtent[i] + 0.55); // clear of the wings and antennas
       this.body.add(new THREE.ArrowHelper(d, new THREE.Vector3(), len, hex(AXIS_COLORS[i]), 0.38, 0.2));
       this.addLabel(this.body, names[i], AXIS_COLORS[i], d.clone().multiplyScalar(len + 0.22));
     });

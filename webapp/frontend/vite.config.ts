@@ -7,7 +7,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    chunkSizeWarningLimit: 800, // one bundle: three.js alone is ~650 kB minified (a local tool, no code splitting needed)
+    chunkSizeWarningLimit: 850, // one bundle: three.js alone is ~650 kB minified (a local tool, no code splitting needed)
   },
   server: {
     proxy: {

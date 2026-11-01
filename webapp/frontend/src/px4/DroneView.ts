@@ -12,56 +12,24 @@ import { VIEW_LEGENDS } from '../ui/glyphs';
 import { renderLegend } from '../ui/legend';
 import { createViewport, disposeObject, labelElement, observeSize } from '../adcs/viewport';
 import { finiteRow } from './series';
+import { ARM, ROTOR_R, buildQuadcopter } from '../models/quadcopter';
+import { loadRoleModel } from '../models/gltf';
 import type { Row } from './types';
 
-const ARM = 1.15; // centre to rotor centre [model units]
-const ROTOR_R = 0.5;
 const GRID_Y = -0.95;
 
 function hex(c: string): number {
   return new THREE.Color(c).getHex();
 }
 
-/** The quadcopter in FRD coordinates. `solid` = ours; otherwise the translucent amber wireframe ghost. */
-function buildDrone(solid: boolean): THREE.Group {
-  const g = new THREE.Group();
-  const bodyGeo = new THREE.BoxGeometry(0.62, 0.42, 0.16); // x forward, y right, z down
-  const armGeo = new THREE.BoxGeometry(ARM * 2, 0.07, 0.05);
-  const rotorGeo = new THREE.CylinderGeometry(ROTOR_R, ROTOR_R, 0.02, 32);
-  rotorGeo.rotateX(Math.PI / 2); // cylinder axis y -> z (the rotor axis in FRD)
-  const noseGeo = new THREE.ConeGeometry(0.1, 0.34, 16);
-  noseGeo.rotateZ(-Math.PI / 2); // cone axis +y -> +x
-
-  const ghostMat = new THREE.LineBasicMaterial({ color: hex(COLORS.ekf2), transparent: true, opacity: 0.75, depthWrite: false });
-  // Ours: shaded meshes. Ghost: edge outlines only (a wireframe would draw every rotor spoke and hide ours).
-  const part = (geo: THREE.BufferGeometry, color: number, opacity = 1): THREE.Object3D =>
-    solid
-      ? new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.25, transparent: opacity < 1, opacity }))
-      : new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), ghostMat);
-
-  g.add(part(bodyGeo, 0xd2d9e6));
-  for (const a of [Math.PI / 4, -Math.PI / 4]) {
-    const arm = part(armGeo, 0x8d98ad);
-    arm.rotation.z = a; // two bars across the centre form the X frame
-    g.add(arm);
-  }
-  for (const sx of [1, -1]) {
-    for (const sy of [1, -1]) {
-      const rotor = part(rotorGeo, 0xaeb8cc, 0.55);
-      rotor.position.set((sx * ARM) / Math.SQRT2, (sy * ARM) / Math.SQRT2, -0.07); // above the arms (up = -z)
-      g.add(rotor);
-    }
-  }
-  const nose = part(noseGeo, 0xff5a5a);
-  nose.position.set(0.47, 0, 0);
-  g.add(nose);
-
-  if (solid) {
-    // Small body triad (x red, y green, z blue) in FRD coordinates.
-    const dirs = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
-    dirs.forEach((d, i) => g.add(new THREE.ArrowHelper(d, new THREE.Vector3(), 0.95, hex(AXIS_COLORS[i]), 0.22, 0.12)));
-  }
-  return g;
+/** Ours: the detailed solid quadcopter plus a small body triad (x red, y green, z blue) in FRD coordinates. */
+function buildOurs(): { root: THREE.Group; model: THREE.Group } {
+  const root = new THREE.Group();
+  const model = buildQuadcopter({ solid: true });
+  root.add(model);
+  const dirs = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+  dirs.forEach((d, i) => root.add(new THREE.ArrowHelper(d, new THREE.Vector3(), 0.95, hex(AXIS_COLORS[i]), 0.22, 0.12)));
+  return { root, model };
 }
 
 export class DroneView {
@@ -70,8 +38,9 @@ export class DroneView {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly labels = new CSS2DRenderer();
   private readonly controls: OrbitControls;
-  private readonly ours = buildDrone(true);
-  private readonly ghost = buildDrone(false);
+  private readonly oursParts = buildOurs();
+  private readonly ours = this.oursParts.root;
+  private readonly ghost = buildQuadcopter({ solid: false, ghostColor: hex(COLORS.ekf2) });
   private dirty = true;
 
   constructor(container: HTMLElement) {
@@ -105,6 +74,13 @@ export class DroneView {
     this.ghost.visible = false;
     this.ghost.scale.setScalar(1.04);
     this.scene.add(this.ours, this.ghost);
+    // An open-licence model listed in public/models/manifest.json replaces the procedural one (ours only).
+    void loadRoleModel('quadcopter', 2 * (ARM + ROTOR_R)).then((m) => {
+      if (!m) return;
+      disposeObject(this.oursParts.model);
+      this.ours.add(m);
+      this.dirty = true;
+    });
 
     this.camera.position.set(-4.2, 2.8, -4.6);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
