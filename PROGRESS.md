@@ -508,3 +508,17 @@ Requested by the user after the colour-block theme: plots that rise over the 3D 
 - **Readouts and help:** grouped readouts (ADCS: Status, Time, Pointing, Attitude knowledge, Motion, Actuators, Orbit; PX4: Attitude and height, Difference, Filter confidence, Time) with units after values and keyboard-accessible "?" help tips; PX4 timeline is a keyboard slider; charts, timelines and 3D views have text summaries for screen readers.
 - **Checks (main):** Chrome (both modes, both tabs): one wheel notch raises the sheet with parallax, PageDown/PageUp work, plots keep streaming while raised; dialog opens with focus on its title, drag-zoom holds at t ≈ 1956 s, Esc returns focus, 10 open/close cycles leave exactly 4 charts; help tips open with Enter and close with Esc; PX4 timeline Shift+→ seeks 10 s. Headless Chrome at 1920×1080, 1536×730, 1280×800, 1050×900 and 1536×590 in both modes: 40 px bar, no page scroll at ≥ 1100 × 600, fallback scroll below, no horizontal overflow, no console errors. Fixed during the checks: squashed timeline band (panel padding overrode the timeline card), double help button on the mode chip, footer code text under 12 px.
 - 239 vitest (up from 131); build clean.
+
+## Dashboard landing page, soft UI and detailed models (2026-11-01)
+
+Requested by the user: an editorial landing dashboard that routes into the two instruments, light and dark mode, a more comfortable UI with rounder corners, and more detailed 3D models. The user chose the hybrid route for the models. Spec: `docs/specs/ui_dashboard.md`, which amends `ui_console.md`.
+
+- **Routes:** `#home` (the default), `#adcs` and `#px4`, with pill tabs in a 56 px bar. The ADCS page is now built on the first visit to `#adcs`, so the landing page opens no session.
+- **Dashboard:** a live Three.js hero with the CubeSat over the Earth's limb, a kinetic Anton headline, two instrument cards with live server and log status, and four sourced fact tiles. Each fact's value is checked verbatim against this file: 0.99° nadir RMS, 99/100 Monte Carlo, 1.22 orbits median detumble, and 0.37° tilt vs EKF2. A marquee band and a footer close the page. Reduced motion and no-WebGL fallbacks are included.
+- **Soft UI:** radius tokens of 8/12/20 px replace the 3/4 px corners, the corner brackets are removed, controls are 34 px, base text is 14 px, and light-mode panels get a faint lift.
+- **Models:**
+  - A detailed procedural 3U CubeSat with rails, ribs, two deployed wings, UHF antennas, a GPS patch, a camera, a star tracker and sun sensors, sharing SatView's body frame.
+  - A detailed FRD quadcopter with props, sweep discs, a battery, a GPS mast, a camera and landing legs.
+  - An optional glTF swap-in through `public/models/manifest.json`, accepting CC0/CC-BY only, with the `GLTF_TO_FRD` rotation tested. **No glTF is bundled:** the cloud session's network policy blocked the model hosts (Poly Haven), so the procedural quadcopter is what ships.
+- **Checks (main):** headless Chromium (SwiftShader) at 1440×900 and 390×844 in both modes, on all three routes. There is no horizontal scroll, no page errors, and the cards route correctly. The quadcopter was rendered separately to check prop, mast and nose orientation.
+- 256 vitest (up from 239); build clean.

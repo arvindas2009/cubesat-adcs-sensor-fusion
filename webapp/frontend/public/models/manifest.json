@@ -1,0 +1,4 @@
+{
+  "_comment": "Optional open-licence 3D models (docs/specs/ui_dashboard.md §4). Each entry: role (\"quadcopter\"), file (in this folder), license (CC0-1.0 or CC-BY-4.0), source URL, author, and up/forward axes. Empty = the procedural models in src/models/ are used.",
+  "models": []
+}

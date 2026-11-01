@@ -5,6 +5,7 @@ import '@fontsource/barlow-semi-condensed/latin-400.css';
 import '@fontsource/barlow-semi-condensed/latin-500.css';
 import '@fontsource/barlow-semi-condensed/latin-600.css';
 import '@fontsource-variable/jetbrains-mono/wght.css';
+import '@fontsource/anton/latin-400.css';
 import './style.css';
 import { ApiError, createSession, deleteSession, getPresets, wsUrl } from './api';
 import { OrbitView } from './adcs/OrbitView';
@@ -17,25 +18,25 @@ import { Sheet, sheetMarkup } from './ui/Sheet';
 import { nextTab } from './ui/a11y';
 import { closeChartDialog } from './ui/ChartDialog';
 import { SessionSocket } from './ws';
+import { Dashboard } from './dashboard/Dashboard';
+import { ROUTES, routeFromHash, type Route } from './router';
 import { currentTheme, initTheme, onThemeChange, otherTheme, toggleTheme } from './theme';
 import type { Frame, FrameEvents, Hello, SessionParams } from './types';
 
 export const FOOTER_TEXT = 'Simulation — visual aid only; reported numbers come from adcs/report/.';
 
-type Tab = 'adcs' | 'px4';
+type Tab = Route;
 
-const TABS: Tab[] = ['adcs', 'px4'];
+const TABS: readonly Tab[] = ROUTES;
 
-/** Document title of each tab (the bar brand is "Attitude Lab" on both). */
+/** Document title of each route (the bar brand is "Attitude Lab" on all). */
 const DOC_TITLE: Record<Tab, string> = {
+  home: 'Attitude lab: dashboard',
   adcs: 'Attitude lab: CubeSat ADCS live simulator',
   px4: 'Attitude lab: PX4 flight replay',
 };
 
-/** `#px4` opens the replay tab; anything else (including no hash) the ADCS tab. */
-function tabFromHash(hash: string): Tab {
-  return hash.replace(/^#/, '') === 'px4' ? 'px4' : 'adcs';
-}
+const tabFromHash = routeFromHash;
 
 const HISTORY_CAPACITY = 20000;
 const CHART_INTERVAL_MS = 125; // plots and timeline refresh at about 8 Hz
@@ -48,13 +49,14 @@ const ICON_MOON =
 /** Top bar (spec ui_console.md §2) and the two tab panels. The PX4 caveat is here, so it shows before ReplayPage exists. */
 const SHELL = `
   <header class="app-bar">
-    <h1 class="brand" id="title"><span class="brand-mark" aria-hidden="true">■</span><span class="brand-text">Attitude Lab</span></h1>
+    <a class="brand" id="title" href="#home" aria-label="Attitude Lab, dashboard"><span class="brand-mark" aria-hidden="true"></span><span class="brand-text">Attitude Lab</span></a>
     <nav class="tabs" role="tablist" aria-label="Instrument">
-      <button class="tab" id="tab-adcs" role="tab" aria-selected="true" aria-controls="page-adcs" tabindex="0">ADCS</button>
+      <button class="tab" id="tab-home" role="tab" aria-selected="true" aria-controls="page-home" tabindex="0">Dashboard</button>
+      <button class="tab" id="tab-adcs" role="tab" aria-selected="false" aria-controls="page-adcs" tabindex="-1">ADCS</button>
       <button class="tab" id="tab-px4" role="tab" aria-selected="false" aria-controls="page-px4" tabindex="-1">PX4 replay</button>
     </nav>
     <div class="bar-status" id="bar-status">
-      <div class="bar-slot" id="bar-status-adcs"></div>
+      <div class="bar-slot" id="bar-status-adcs" hidden></div>
       <div class="bar-slot" id="bar-status-px4" hidden>
         <span class="caveat" id="px4-caveat" role="note">${PX4_CAVEAT}</span>
         <span class="bar-meta" id="px4-meta"></span>
@@ -63,7 +65,8 @@ const SHELL = `
     <button class="theme-toggle" id="theme-toggle" type="button"></button>
   </header>
   <main id="stage-root">
-    <section class="page" id="page-adcs" role="tabpanel" aria-labelledby="tab-adcs">
+    <section class="page page-home" id="page-home" role="tabpanel" aria-labelledby="tab-home" data-own-scroll></section>
+    <section class="page" id="page-adcs" role="tabpanel" aria-labelledby="tab-adcs" hidden>
       <div id="banner" role="alert"></div>
       <div class="stage" id="adcs-stage">
         <div class="stage-views" id="views">
@@ -123,15 +126,17 @@ function mount(root: HTMLElement): void {
   });
   onThemeChange(syncThemeButton);
 
-  // ---- tabs: #page-adcs / #page-px4, switched by the buttons, the arrow keys and the URL hash (#adcs / #px4) ----
+  // ---- routes: #home (dashboard) / #adcs / #px4, switched by the tabs, the arrow keys and the URL hash ----
+  const pageHome = must(root, '#page-home');
   const pageAdcs = must(root, '#page-adcs');
   const pagePx4 = must(root, '#page-px4');
   const slotAdcs = must(root, '#bar-status-adcs');
   const slotPx4 = must(root, '#bar-status-px4');
   const tabButtons = TABS.map((t) => must<HTMLButtonElement>(root, `#tab-${t}`));
-  let adcsVisible = true; // the ADCS session keeps running while hidden; only rendering is skipped
+  let adcsVisible = false; // the ADCS session keeps running while hidden; only rendering is skipped
+  let adcs: { onShow(): void } | null = null; // created on the first visit to #adcs (no session before)
+  let dashboard: Dashboard | null = null;
   let replay: ReplayPage | null = null;
-  let chartsForceOnShow = false;
 
   function selectTab(tab: Tab, writeHash: boolean): void {
     closeChartDialog(); // an expanded plot belongs to the tab it was opened from
@@ -142,15 +147,18 @@ function mount(root: HTMLElement): void {
       tabButtons[i].setAttribute('aria-selected', String(on));
       tabButtons[i].tabIndex = on ? 0 : -1; // roving tabindex
     });
+    pageHome.hidden = tab !== 'home';
     pageAdcs.hidden = tab !== 'adcs';
     pagePx4.hidden = tab !== 'px4';
     slotAdcs.hidden = tab !== 'adcs';
     slotPx4.hidden = tab !== 'px4';
     adcsVisible = tab === 'adcs';
     if (adcsVisible) {
-      chartsForceOnShow = true;
-      panels.syncCharts(); // uPlot caches its rect, which was 0 while the page was hidden
+      adcs ??= startAdcs(); // lazily, once, after the page is visible (the 3D views need its size)
+      adcs.onShow();
     }
+    if (tab === 'home' && !dashboard) dashboard = new Dashboard(pageHome);
+    dashboard?.setVisible(tab === 'home');
     if (tab === 'px4' && !replay) replay = new ReplayPage(pagePx4, slotPx4); // lazily, once, after the page is visible
     replay?.setVisible(tab === 'px4');
     if (writeHash && tabFromHash(location.hash) !== tab) location.hash = tab;
@@ -166,7 +174,13 @@ function mount(root: HTMLElement): void {
     tabButtons[to].focus();
   });
   window.addEventListener('hashchange', () => selectTab(tabFromHash(location.hash), false));
+  const startAdcs = () => startAdcsPage(root, slotAdcs, () => adcsVisible);
+  selectTab(tabFromHash(location.hash), false);
+}
 
+/** The live ADCS page: views, panels, sheet, session flow and render loop. Called on the first visit to #adcs. */
+function startAdcsPage(root: HTMLElement, slotAdcs: HTMLElement, isVisible: () => boolean): { onShow(): void } {
+  let chartsForceOnShow = false;
   const history = new History(HISTORY_CAPACITY);
   const modes = new ModeTrack();
   const latch = new FrameLatch();
@@ -223,7 +237,7 @@ function mount(root: HTMLElement): void {
 
   // The rising plot sheet: wheel / keys / drag, parallax, inert and 3D render pausing (spec ui_console.md §3).
   const sheet = new Sheet(must(root, '#adcs-stage'), {
-    isActive: () => adcsVisible,
+    isActive: isVisible,
     onSettle: () => panels.syncCharts(),
     onResumeRender: () => {
       orbit?.invalidate();
@@ -318,7 +332,7 @@ function mount(root: HTMLElement): void {
   function loop(now: number): void {
     // A hidden ADCS tab keeps receiving frames into the history (and keeps the newest one latched) but
     // skips all drawing; on showing the tab the newest frame and the charts are drawn at once.
-    if (adcsVisible) {
+    if (isVisible()) {
       if (chartsForceOnShow) {
         chartsForceOnShow = false;
         chartsDirty = true;
@@ -343,7 +357,6 @@ function mount(root: HTMLElement): void {
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
-  selectTab(tabFromHash(location.hash), false);
 
   // Free the server-side session when the tab goes away.
   window.addEventListener('pagehide', () => {
@@ -351,6 +364,13 @@ function mount(root: HTMLElement): void {
       void fetch(`/api/adcs/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', keepalive: true }).catch(() => undefined);
     }
   });
+
+  return {
+    onShow: () => {
+      chartsForceOnShow = true;
+      panels.syncCharts(); // uPlot caches its rect, which was 0 while the page was hidden
+    },
+  };
 }
 
 const root = document.getElementById('app');

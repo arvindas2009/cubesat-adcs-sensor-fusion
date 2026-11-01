@@ -122,8 +122,8 @@ The roles are unchanged. Every value must be ≥ 3:1 on the plot card of its mod
   | Dialog title / help | 18/600 / 14 at line-height 1.5 |
 
 - Uppercase is only for short labels, never sentences.
-- **Spacing:** 4 px grid (4/8/12/16/24); panel gap 8; panel padding 10×12; controls 28 px tall.
-- **Radius and edges:** 4 px on panels, 3 px on controls and chips. No pills, no drop shadows, 1 px edges.
+- **Spacing:** 4 px grid (4/8/12/16/24); panel gap 8; panel padding 10×12; controls 28 px tall. *Amended by `ui_dashboard.md` §5: gap 12, controls 34 px.*
+- **Radius and edges:** 4 px on panels, 3 px on controls and chips. No pills, no drop shadows, 1 px edges. *Amended by `ui_dashboard.md` §5: radius tokens 8 / 12 / 20 px, pill tabs, a faint shadow on light-mode panels, no corner brackets.*
 - **Corner brackets:**
   - Every `.panel` and 3D viewport gets a `::before` (`position:absolute; inset:0; pointer-events:none`).
   - It draws eight `linear-gradient(var(--bracket) 0 0)` layers: a 10×1.5 and a 1.5×10 at each corner.
