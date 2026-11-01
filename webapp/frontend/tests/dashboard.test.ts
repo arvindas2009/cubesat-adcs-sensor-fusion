@@ -117,3 +117,90 @@ describe('soft UI tokens (style.css)', () => {
     expect(css).not.toMatch(/border-radius:\s*[1-4]px/);
   });
 });
+
+// ---- landing page v2: motion helpers and sourced copy -------------------------------------------
+import { Spring, nearest, project, rubberband, velocityOf } from '../src/dashboard/spring';
+import { LOOP, PHASES } from '../src/dashboard/content';
+
+describe('Spring', () => {
+  const run = (s: Spring, seconds: number) => {
+    let max = -Infinity;
+    for (let t = 0; t < seconds; t += 1 / 60) max = Math.max(max, s.step(1 / 60));
+    return max;
+  };
+  it('critically damped: reaches the target without overshoot', () => {
+    const s = new Spring(0, { damping: 1, response: 0.4 });
+    s.target = 1;
+    expect(run(s, 3)).toBeLessThanOrEqual(1 + 1e-6);
+    expect(s.value).toBeCloseTo(1, 4);
+    expect(s.settled).toBe(true);
+  });
+  it('under-damped: overshoots, then settles', () => {
+    const s = new Spring(0, { damping: 0.5, response: 0.4 });
+    s.target = 1;
+    expect(run(s, 4)).toBeGreaterThan(1.05);
+    expect(s.value).toBeCloseTo(1, 3);
+  });
+  it('re-targets from its current value and velocity (no jump)', () => {
+    const s = new Spring(0, { damping: 1, response: 0.4 });
+    s.target = 1;
+    s.step(0.1);
+    const v = s.value;
+    s.target = -1;
+    s.configure({ damping: 0.8, response: 0.3 });
+    expect(s.value).toBe(v);
+    s.step(1 / 240);
+    expect(Math.abs(s.value - v)).toBeLessThan(0.05);
+  });
+  it('a larger response is slower', () => {
+    const fast = new Spring(0, { response: 0.2 });
+    const slow = new Spring(0, { response: 0.8 });
+    fast.target = slow.target = 1;
+    fast.step(0.15);
+    slow.step(0.15);
+    expect(fast.value).toBeGreaterThan(slow.value);
+  });
+});
+
+describe('gesture helpers', () => {
+  it('project: 1000 px/s coasts 499 px at 0.998, nothing at rest', () => {
+    expect(project(1000)).toBeCloseTo(499, 6);
+    expect(project(0)).toBe(0);
+    expect(project(-500)).toBeCloseTo(-249.5, 6);
+  });
+  it('nearest picks the closest snap point', () => {
+    expect(nearest([0, 1 / 3, 2 / 3, 1], 0.55)).toBeCloseTo(2 / 3, 12);
+    expect(nearest([0, 1], -5)).toBe(0);
+  });
+  it('rubberband resists more the further past the edge, and never exceeds the pull', () => {
+    const a = rubberband(50, 400);
+    const b = rubberband(200, 400);
+    expect(a).toBeGreaterThan(0);
+    expect(a).toBeLessThan(50);
+    expect(b / 200).toBeLessThan(a / 50);
+    expect(rubberband(-50, 400)).toBeCloseTo(-a, 12);
+  });
+  it('velocityOf uses the recent window', () => {
+    const h = [
+      { x: 0, t: 0 },
+      { x: 10, t: 500 },
+      { x: 20, t: 550 },
+      { x: 30, t: 600 },
+    ];
+    expect(velocityOf(h)).toBeCloseTo(200, 6); // (30 - 10) px / 0.1 s; the t = 0 sample is outside the window
+    expect(velocityOf([{ x: 1, t: 0 }])).toBe(0);
+  });
+});
+
+describe('landing copy is sourced', () => {
+  const progress = readFileSync(new URL('../../../PROGRESS.md', import.meta.url), 'utf8');
+  const all = [...LOOP.flatMap((s) => s.evidence), ...PHASES.flatMap((p) => p.evidence)];
+  it.each(all)('"%s" appears in PROGRESS.md', (e) => {
+    expect(progress).toContain(e);
+  });
+  it('the loop has the four stages in order and phases start with release', () => {
+    expect(LOOP.map((s) => s.id)).toEqual(['sense', 'estimate', 'control', 'actuate']);
+    expect(PHASES[0].id).toBe('release');
+    expect(PHASES.at(-1)!.id).toBe('point');
+  });
+});

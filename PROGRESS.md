@@ -522,3 +522,26 @@ Requested by the user: an editorial landing dashboard that routes into the two i
   - An optional glTF swap-in through `public/models/manifest.json`, accepting CC0/CC-BY only, with the `GLTF_TO_FRD` rotation tested. **No glTF is bundled:** the cloud session's network policy blocked the model hosts (Poly Haven), so the procedural quadcopter is what ships.
 - **Checks (main):** headless Chromium (SwiftShader) at 1440×900 and 390×844 in both modes, on all three routes. There is no horizontal scroll, no page errors, and the cards route correctly. The quadcopter was rendered separately to check prop, mast and nose orientation.
 - 256 vitest (up from 239); build clean.
+
+## Landing page v2: blue space theme (2026-11-01)
+
+Requested by the user: a fuller landing page with interactive backgrounds, a brief introduction of the project by name, an electric blue space look with soft corners, and the app pages left as they are. Spec: `docs/specs/ui_dashboard.md` §6.
+
+- **Hero:** "Attitude Lab" with a tagline, introduction, CTAs and telemetry chips, over a live scene. The scene has the Earth with a fresnel atmosphere, magnetic dipole field lines with travelling pulses, the 51.6° orbit with the CubeSat (trail and nadir beam), the Moon, a ringed planet, a Sun glow and parallax stars. Pointer parallax uses critically damped springs; dragging spins the Earth with momentum.
+- **New sections:**
+  - About (two vehicles, one core);
+  - an interactive Sense/Estimate/Control/Actuate loop with a "current" wire;
+  - a draggable mission timeline: flick it and it projects and snaps to a phase, with rubber-band ends, keyboard support and labels;
+  - a "built with" strip.
+  - The existing cards and facts were restyled as glass.
+- **Background:** a calm, pointer-reactive node network with sparks (2D canvas, paused when hidden).
+- **Shell:** a glass top bar on the landing page; the selected tab and brand mark are blue on all routes. The display font changed from Anton to Space Grotesk (softer). The app pages and their amber action colour are unchanged.
+- **Motion and accessibility:** these follow the user's Apple-design guidance:
+  - springs set by damping and response;
+  - 1:1 drag with the grab offset kept;
+  - velocity handoff and 0.998 projection;
+  - press feedback on pointer-down;
+  - reduced-motion, reduced-transparency and more-contrast fallbacks.
+- **Sourcing:** every technical claim on the page (sensor models, gains, phases) is an `evidence` string that a test finds verbatim in this file.
+- **Checks (main):** headless Chromium at 1440×900 and 390×844 in both modes. There is no horizontal scroll and no page errors. A flick snapped the mission knob to a later phase, End jumped to "Point", the loop tab selected, and the hero CTA routed to `#adcs`.
+- 285 vitest (up from 256); build clean.

@@ -5,7 +5,7 @@ import '@fontsource/barlow-semi-condensed/latin-400.css';
 import '@fontsource/barlow-semi-condensed/latin-500.css';
 import '@fontsource/barlow-semi-condensed/latin-600.css';
 import '@fontsource-variable/jetbrains-mono/wght.css';
-import '@fontsource/anton/latin-400.css';
+import '@fontsource-variable/space-grotesk/wght.css';
 import './style.css';
 import { ApiError, createSession, deleteSession, getPresets, wsUrl } from './api';
 import { OrbitView } from './adcs/OrbitView';

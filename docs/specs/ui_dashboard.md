@@ -16,7 +16,7 @@ Every number shown on the dashboard must come from `PROGRESS.md`.
 
 ## 1. Look
 
-The design is original; no third-party brand, name or logo is copied. The display face is Anton (OFL, `@fontsource/anton`), used for headlines only. UI text and numerals keep Barlow Semi Condensed and JetBrains Mono.
+The design is original; no third-party brand, name or logo is copied. The display face is Space Grotesk (OFL, `@fontsource-variable/space-grotesk`; it replaced Anton in §6 as softer and more technical), used for headlines only. UI text and numerals keep Barlow Semi Condensed and JetBrains Mono.
 
 ## 2. Routes
 
@@ -87,3 +87,52 @@ The ADCS page (3D views, panels, sheet, render loop) is built on the **first vis
   - manifest licence filtering;
   - radius tokens, with no hard-coded 1–4 px radius left.
 - Headless check at 1440×900 and 390×844 in both modes: no horizontal scroll, the hero renders, the cards route to `#adcs`/`#px4`, and no page errors.
+
+## 6. Landing page v2: blue space theme (2026-11-01)
+
+Requested by the user: a fuller landing page with more detail and interactive backgrounds. It introduces the project by name, uses an electric, technical, space-themed design in blue, and has no harsh corners and a comfortable feel. The app pages are not redesigned; only the landing page and the shell around it change. The motion follows the user's "Apple design" guidance:
+- springs set by damping and response;
+- 1:1 drags that respect the grab offset;
+- release velocity handed off, with momentum projection (0.998);
+- rubber-band ends;
+- press feedback on pointer-down;
+- translucent chrome;
+- reduced-motion, reduced-transparency and more-contrast fallbacks.
+
+### Theme
+- Landing tokens (`--sp-*`) are scoped to `.page-home`. Dark mode is navy `#050a18` with electric blue `#4f8cff` and cyan `#5fd8ff`. Light mode is a pale sky `#f1f5ff` with `#2552c8` / `#0a86c2`.
+- Surfaces are glass (16 px blur, 24 px radius); buttons, tags and tabs are pill-shaped.
+- The hero is the night sky in both modes.
+- On the landing page the top bar is translucent glass. The selected tab and brand mark are blue on every route.
+- The in-app `--action` amber is unchanged, and so are the theme tokens and their tests.
+
+### Sections (`Dashboard.ts`)
+1. **Hero** (full height, rounded bottom).
+   - Content: the name "Attitude Lab", a tagline, a brief introduction, CTAs to `#adcs` / `#px4`, and telemetry chips (3U · 4 kg, 400 km · 51.6°, 1 Hz sensors, 3 PX4 logs; all from PROGRESS).
+   - `HeroView` draws the Earth with a fresnel atmosphere; dipole field lines (r = L sin²θ) with shader pulses travelling along them; the 51.6° orbit ring with the detailed CubeSat, its trail and nadir beam; the Moon; a distant ringed planet; a Sun glow; and two star layers.
+   - The camera eases toward the pointer and the page scroll dollies it. Dragging spins the Earth system 1:1, and the release keeps its momentum.
+   - On narrow screens the Earth becomes a horizon under the copy.
+   - The scene is schematic, not to scale.
+2. **About.** "One estimation core. Two vehicles.", with Project A and B mini cards.
+3. **The loop** (tabs: Sense → Estimate → Control → Actuate). A wire has a travelling "current"; selecting a stage shows its parts, from `content.ts` `LOOP`.
+4. **Mission timeline** (`Scrubber`). Drag or flick the satellite through Release → Detumble → Acquire → Point. Keys, clicks and labels also work. The content is `PHASES`.
+5. **Instruments** with live status; **facts**; **built with**; marquee; **footer**.
+
+### Background
+`ElectricField` draws a fixed 2D canvas behind the page: drifting nodes and links that glow near the pointer and get pushed gently aside, plus occasional sparks running along links. It is paused when hidden or in a background tab, and is a single still frame under reduced motion.
+
+### Sourcing
+Every `evidence` string in `content.ts` must appear verbatim in `PROGRESS.md`, which a test checks.
+
+### Acceptance
+- Vitest covers:
+  - spring physics: no overshoot at damping 1, overshoot below 1, re-targeting without a jump, response ordering;
+  - `project`, `nearest`, `rubberband`, `velocityOf`;
+  - the sourced loop and phase copy.
+- A headless check at 1440×900 and 390×844 in both modes must show:
+  - no horizontal scroll;
+  - no page errors;
+  - a flick of the mission knob snaps to a later phase;
+  - End jumps to the last phase;
+  - the loop tab selects;
+  - the hero CTA routes to `#adcs`.
